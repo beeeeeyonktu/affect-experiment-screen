@@ -1,0 +1,21 @@
+{
+  "name": "affect-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "package:lambda": "npm run build && rm -f lambda.zip && rm -rf dist/node_modules && cp package.json dist/package.json && cp -R ../node_modules dist/node_modules && (cd dist && zip -r ../lambda.zip .)",
+    "test": "echo 'add backend tests'"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.650.0",
+    "@aws-sdk/lib-dynamodb": "^3.650.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.2"
+  }
+}

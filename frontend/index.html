@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Affect Experiment</title>
+    <style>
+      :root {
+        --bg: #f6f6ef;
+        --fg: #202227;
+        --accent: #1864ab;
+      }
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--fg);
+        background: radial-gradient(circle at 10% 10%, #fffef7, var(--bg));
+      }
+      .wrap {
+        max-width: 840px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .card {
+        background: #ffffffdd;
+        border: 1px solid #ddd9cc;
+        border-radius: 12px;
+        padding: 20px;
+      }
+      #text {
+        line-height: 1.9;
+        font-size: 1.3rem;
+        min-height: 220px;
+      }
+      .muted {
+        color: #555;
+      }
+      button {
+        border: 0;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 1rem;
+        cursor: pointer;
+        background: var(--accent);
+        color: white;
+      }
+      .pill {
+        display: inline-block;
+        margin-right: 6px;
+        border: 1px solid #ccc;
+        border-radius: 999px;
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+      .pill.selected {
+        border-color: var(--accent);
+        background: #e8f2fb;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Affective Change Reading Task</h1>
+      <div class="card">
+        <div id="route"></div>
+      </div>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

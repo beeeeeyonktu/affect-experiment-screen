@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Affect Experiment Admin</title>
+    <style>
+      :root {
+        --bg: #f6f6ef;
+        --fg: #202227;
+        --accent: #1864ab;
+      }
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--fg);
+        background: radial-gradient(circle at 10% 10%, #fffef7, var(--bg));
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .card {
+        background: #ffffffdd;
+        border: 1px solid #ddd9cc;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+      }
+      button {
+        border: 0;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 1rem;
+        cursor: pointer;
+        background: var(--accent);
+        color: white;
+      }
+      .muted {
+        color: #555;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th, td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid #ddd9cc;
+        font-size: 0.95rem;
+        vertical-align: top;
+      }
+      .mono {
+        font-family: Menlo, Monaco, Consolas, monospace;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      input[type="text"], input[type="number"] {
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+      }
+      #detail pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #fbfbf7;
+        border: 1px solid #ddd9cc;
+        border-radius: 8px;
+        padding: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Affective Change Admin</h1>
+      <div class="card">
+        <div class="row">
+          <button id="loginBtn">Admin Login</button>
+          <button id="logoutBtn">Logout</button>
+          <button id="refreshBtn">Refresh Results</button>
+          <label class="muted" for="limitInput">Rows:</label>
+          <input id="limitInput" type="number" min="1" max="500" value="100" />
+        </div>
+        <p id="authStatus" class="muted"></p>
+      </div>
+
+      <div class="card">
+        <h2>Sessions</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Session</th>
+              <th>Participant</th>
+              <th>Status</th>
+              <th>Calibration</th>
+              <th>Assigned</th>
+              <th>Done</th>
+              <th>Interrupted</th>
+              <th>Events</th>
+              <th>Created</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="sessionsBody"></tbody>
+        </table>
+      </div>
+
+      <div class="card" id="detail">
+        <h2>Session Detail</h2>
+        <p class="muted">Select a session to inspect assignments and raw events.</p>
+      </div>
+    </div>
+    <script type="module" src="./admin.js"></script>
+  </body>
+</html>
+

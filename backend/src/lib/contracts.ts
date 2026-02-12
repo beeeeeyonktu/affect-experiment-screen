@@ -7,6 +7,17 @@ export interface SessionHeartbeatRequest {
   lease_token: string;
 }
 
+export interface SessionCompleteRequest {
+  session_id: string;
+  lease_token: string;
+}
+
+export interface CalibrationSaveRequest {
+  session_id: string;
+  lease_token: string;
+  calibration_group: "slow" | "medium" | "fast";
+}
+
 export interface StimulusNextRequest {
   session_id: string;
   category?: string;
@@ -62,8 +73,25 @@ export interface EventBatchRequest {
   events: ExperimentEvent[];
 }
 
+export interface AdminSummaryRequest {
+  limit?: number;
+}
+
+export interface AdminSessionDetailRequest {
+  session_id: string;
+  event_limit?: number;
+}
+
 export function assertString(value: unknown, field: string): string {
   if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`Invalid ${field}`);
+  }
+  return value;
+}
+
+export function assertOptionalNumber(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`Invalid ${field}`);
   }
   return value;

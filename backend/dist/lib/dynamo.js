@@ -18,7 +18,7 @@ export async function getSession(session_id) {
     return out.Item ?? null;
 }
 export async function createParticipantSessionAndLock(input) {
-    const lock_id = `PID#${input.prolific_pid}`;
+    const lock_id = `STUDY#${input.study_id}#PID#${input.prolific_pid}`;
     await ddb.send(new TransactWriteCommand({
         TransactItems: [
             {
@@ -42,6 +42,7 @@ export async function createParticipantSessionAndLock(input) {
                     Item: {
                         participant_id: input.participant_id,
                         prolific_pid: input.prolific_pid,
+                        study_id: input.study_id,
                         prolific_session_id: input.prolific_session_id,
                         status: "active",
                         created_at_utc: input.session.created_at_utc
@@ -67,6 +68,36 @@ export async function refreshLease(session_id, expectedLeaseToken, nextLeaseIso,
         ConditionExpression: "lease_token = :lease",
         ExpressionAttributeValues: {
             ":next": nextLeaseIso,
+            ":updated": updatedIso,
+            ":lease": expectedLeaseToken
+        }
+    }));
+}
+export async function completeSession(session_id, expectedLeaseToken, updatedIso) {
+    await ddb.send(new UpdateCommand({
+        TableName: SESSIONS_TABLE,
+        Key: { session_id },
+        UpdateExpression: "SET #status = :complete, updated_at_utc = :updated",
+        ConditionExpression: "lease_token = :lease",
+        ExpressionAttributeNames: {
+            "#status": "status"
+        },
+        ExpressionAttributeValues: {
+            ":complete": "complete",
+            ":updated": updatedIso,
+            ":lease": expectedLeaseToken
+        }
+    }));
+}
+export async function saveCalibration(session_id, expectedLeaseToken, calibration_group, ms_per_word, updatedIso) {
+    await ddb.send(new UpdateCommand({
+        TableName: SESSIONS_TABLE,
+        Key: { session_id },
+        UpdateExpression: "SET calibration_group = :group, ms_per_word = :ms, updated_at_utc = :updated",
+        ConditionExpression: "lease_token = :lease",
+        ExpressionAttributeValues: {
+            ":group": calibration_group,
+            ":ms": ms_per_word,
             ":updated": updatedIso,
             ":lease": expectedLeaseToken
         }
@@ -98,17 +129,66 @@ export async function markStimulusRunProgress(session_id, stimulus_id, run_id, d
     const match = items.find((x) => x.stimulus_id === stimulus_id);
     if (!match)
         return;
-    await ddb.send(new UpdateCommand({
-        TableName: SESSION_STIMULI_TABLE,
-        Key: { session_id, stimulus_order: match.stimulus_order },
-        UpdateExpression: done
-            ? "SET #status = :done, latest_run_id = :run, completed_at_utc = :ts, seen_events = :seen"
-            : "SET #status = :inprog, latest_run_id = :run, seen_events = :seen",
-        ExpressionAttributeNames: { "#status": "status" },
-        ExpressionAttributeValues: done
-            ? { ":done": "done", ":run": run_id, ":ts": nowIso, ":seen": true }
-            : { ":inprog": "in_progress", ":run": run_id, ":seen": true }
-    }));
+    if (done) {
+        try {
+            await ddb.send(new TransactWriteCommand({
+                TransactItems: [
+                    {
+                        Update: {
+                            TableName: SESSION_STIMULI_TABLE,
+                            Key: { session_id, stimulus_order: match.stimulus_order },
+                            UpdateExpression: "SET #status = :done, latest_run_id = :run, completed_at_utc = :ts, seen_events = :seen",
+                            ConditionExpression: "#status <> :done",
+                            ExpressionAttributeNames: { "#status": "status" },
+                            ExpressionAttributeValues: {
+                                ":done": "done",
+                                ":run": run_id,
+                                ":ts": nowIso,
+                                ":seen": true
+                            }
+                        }
+                    },
+                    {
+                        Update: {
+                            TableName: ASSIGNMENT_COUNTERS_TABLE,
+                            Key: { stimulus_id },
+                            UpdateExpression: "SET assigned_count = if_not_exists(assigned_count, :zero) + :one",
+                            ExpressionAttributeValues: {
+                                ":zero": 0,
+                                ":one": 1
+                            }
+                        }
+                    }
+                ]
+            }));
+        }
+        catch (error) {
+            const msg = error instanceof Error ? error.message : "";
+            if (!msg.includes("ConditionalCheckFailed"))
+                throw error;
+        }
+        return;
+    }
+    try {
+        await ddb.send(new UpdateCommand({
+            TableName: SESSION_STIMULI_TABLE,
+            Key: { session_id, stimulus_order: match.stimulus_order },
+            UpdateExpression: "SET #status = :inprog, latest_run_id = :run, seen_events = :seen",
+            ConditionExpression: "#status <> :done",
+            ExpressionAttributeNames: { "#status": "status" },
+            ExpressionAttributeValues: {
+                ":inprog": "in_progress",
+                ":run": run_id,
+                ":seen": true,
+                ":done": "done"
+            }
+        }));
+    }
+    catch (error) {
+        const msg = error instanceof Error ? error.message : "";
+        if (!msg.includes("ConditionalCheckFailed"))
+            throw error;
+    }
 }
 async function listSessionStimuli(session_id) {
     const out = await ddb.send(new QueryCommand({
@@ -159,28 +239,6 @@ async function getAssignedCount(stimulus_id) {
     const row = out.Item;
     return Number(row?.assigned_count ?? 0);
 }
-async function tryIncrementCounter(stimulus_id, expected) {
-    try {
-        await ddb.send(new UpdateCommand({
-            TableName: ASSIGNMENT_COUNTERS_TABLE,
-            Key: { stimulus_id },
-            UpdateExpression: "SET assigned_count = if_not_exists(assigned_count, :zero) + :one",
-            ConditionExpression: "attribute_not_exists(assigned_count) OR assigned_count = :expected",
-            ExpressionAttributeValues: {
-                ":zero": 0,
-                ":one": 1,
-                ":expected": expected
-            }
-        }));
-        return true;
-    }
-    catch (error) {
-        const msg = error instanceof Error ? error.message : "";
-        if (msg.includes("ConditionalCheckFailed"))
-            return false;
-        throw error;
-    }
-}
 export async function getOrAssignNextStimulus(session_id, category, nowIso) {
     const session = await getSession(session_id);
     if (!session)
@@ -220,9 +278,6 @@ export async function getOrAssignNextStimulus(session_id, category, nowIso) {
         const min = counts[0].count;
         const bucket = counts.filter((x) => x.count === min);
         const pick = bucket[Math.floor(Math.random() * bucket.length)];
-        const incremented = await tryIncrementCounter(pick.s.stimulus_id, pick.count);
-        if (!incremented)
-            continue;
         await ddb.send(new PutCommand({
             TableName: SESSION_STIMULI_TABLE,
             Item: {
@@ -239,7 +294,7 @@ export async function getOrAssignNextStimulus(session_id, category, nowIso) {
         break;
     }
     if (!chosen)
-        throw new Error("assignment counter contention; retry");
+        throw new Error("assignment contention; retry");
     await ddb.send(new UpdateCommand({
         TableName: SESSIONS_TABLE,
         Key: { session_id },
@@ -252,5 +307,89 @@ export async function getOrAssignNextStimulus(session_id, category, nowIso) {
         stimulus_id: chosen.stimulus_id,
         text: chosen.text,
         source_key: chosen.s3_key ?? chosen.stimulus_id
+    };
+}
+async function getParticipant(participant_id) {
+    const out = await ddb.send(new GetCommand({ TableName: PARTICIPANTS_TABLE, Key: { participant_id } }));
+    return out.Item ?? null;
+}
+async function countEventsForSession(session_id) {
+    const out = await ddb.send(new QueryCommand({
+        TableName: EVENTS_TABLE,
+        KeyConditionExpression: "session_id = :sid",
+        ExpressionAttributeValues: { ":sid": session_id },
+        Select: "COUNT"
+    }));
+    return Number(out.Count ?? 0);
+}
+async function listEventsForSession(session_id, limit) {
+    const out = await ddb.send(new QueryCommand({
+        TableName: EVENTS_TABLE,
+        KeyConditionExpression: "session_id = :sid",
+        ExpressionAttributeValues: { ":sid": session_id },
+        Limit: limit
+    }));
+    return {
+        items: out.Items ?? [],
+        truncated: Boolean(out.LastEvaluatedKey)
+    };
+}
+export async function adminListRecentSessions(limit) {
+    const out = await ddb.send(new ScanCommand({ TableName: SESSIONS_TABLE }));
+    const sessions = (out.Items ?? [])
+        .sort((a, b) => b.created_at_utc.localeCompare(a.created_at_utc))
+        .slice(0, limit);
+    const rows = [];
+    for (const session of sessions) {
+        const [participant, assignments, eventsCount] = await Promise.all([
+            getParticipant(session.participant_id),
+            listSessionStimuli(session.session_id),
+            countEventsForSession(session.session_id)
+        ]);
+        rows.push({
+            session_id: session.session_id,
+            participant_id: session.participant_id,
+            prolific_pid: participant?.prolific_pid,
+            status: session.status,
+            calibration_group: session.calibration_group,
+            ms_per_word: session.ms_per_word,
+            created_at_utc: session.created_at_utc,
+            updated_at_utc: session.updated_at_utc,
+            assigned_count: assignments.length,
+            done_count: assignments.filter((x) => x.status === "done").length,
+            interrupted_count: assignments.filter((x) => x.status === "interrupted").length,
+            in_progress_count: assignments.filter((x) => x.status === "in_progress").length,
+            events_count: eventsCount
+        });
+    }
+    return rows;
+}
+export async function adminGetSessionDetail(session_id, eventLimit) {
+    const session = await getSession(session_id);
+    if (!session)
+        return null;
+    const [participant, assignments, eventsOut] = await Promise.all([
+        getParticipant(session.participant_id),
+        listSessionStimuli(session_id),
+        listEventsForSession(session_id, eventLimit)
+    ]);
+    const stimuliResolved = await Promise.all(assignments.map(async (a) => {
+        const st = await getStimulusById(a.stimulus_id);
+        return {
+            stimulus_id: a.stimulus_id,
+            stimulus_order: a.stimulus_order,
+            status: a.status,
+            latest_run_id: a.latest_run_id,
+            text: st?.text ?? "",
+            category: st?.category
+        };
+    }));
+    return {
+        session,
+        participant: participant ?? undefined,
+        assignments,
+        stimuli: stimuliResolved,
+        events: eventsOut.items,
+        events_truncated: eventsOut.truncated
     };
 }

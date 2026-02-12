@@ -18,6 +18,9 @@ async function req(path, body, keepalive = false) {
 export const api = {
   sessionStart: (secured_url_jwt) => req("/session/start", { secured_url_jwt }),
   heartbeat: (session_id, lease_token) => req("/session/heartbeat", { session_id, lease_token }),
+  sessionComplete: (session_id, lease_token) => req("/session/complete", { session_id, lease_token }),
+  calibrationSave: (session_id, lease_token, calibration_group) =>
+    req("/calibration/save", { session_id, lease_token, calibration_group }),
   stimulusNext: (session_id, category = null) => req("/stimulus/next", { session_id, category }),
   eventsBatch: (session_id, run_id, events, keepalive = false) =>
     req("/events/batch", { session_id, run_id, events }, keepalive)

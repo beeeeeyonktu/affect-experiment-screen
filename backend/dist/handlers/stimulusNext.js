@@ -6,8 +6,7 @@ export async function handler(event) {
     try {
         const body = parseBody(event.body);
         const session_id = assertString(body.session_id, "session_id");
-        const category = typeof body.category === "string" && body.category.length > 0 ? body.category : undefined;
-        const stimulus = await getOrAssignNextStimulus(session_id, category, isoFromMs(nowMs()));
+        const stimulus = await getOrAssignNextStimulus(session_id, undefined, isoFromMs(nowMs()));
         return json(200, stimulus);
     }
     catch (error) {

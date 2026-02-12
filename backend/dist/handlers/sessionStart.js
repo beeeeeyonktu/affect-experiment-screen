@@ -12,12 +12,15 @@ export async function handler(event) {
         const securedJwt = assertString(body.secured_url_jwt, "secured_url_jwt");
         const claims = await verifyProlificSecuredUrlJwt(securedJwt);
         const now = nowMs();
-        const participant_id = newSessionId();
+        const participant_id = `${claims.STUDY_ID}#${claims.PROLIFIC_PID}`;
         const session_id = newSessionId();
         const lease_token = newLeaseToken();
         const record = {
             session_id,
             participant_id,
+            study_id: claims.STUDY_ID,
+            prolific_pid: claims.PROLIFIC_PID,
+            prolific_session_id: claims.SESSION_ID,
             status: "active",
             current_index: 0,
             lease_token,
@@ -28,6 +31,7 @@ export async function handler(event) {
         await createParticipantSessionAndLock({
             participant_id,
             prolific_pid: claims.PROLIFIC_PID,
+            study_id: claims.STUDY_ID,
             prolific_session_id: claims.SESSION_ID,
             session: record
         });

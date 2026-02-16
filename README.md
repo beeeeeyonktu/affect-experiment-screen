@@ -37,3 +37,12 @@ Crash-resilient online reading experiment platform for Prolific participants.
 2. Add conditional DynamoDB writes for strict uniqueness and lease ownership.
 3. Add automated load tests (k6) and browser fidelity tests (Playwright).
 4. Add WAF/rate limits and CloudWatch alarms.
+
+## Calibration speed presets
+
+- `slow`: 180 wpm (`333 ms/word`)
+- `medium`: 240 wpm (`250 ms/word`)
+- `fast`: 300 wpm (`200 ms/word`)
+
+Reference anchor for adult silent reading-rate benchmarking:
+- Brysbaert, M. (2019). How many words do we read per minute? *Journal of Memory and Language*, 109, 104047. https://doi.org/10.1016/j.jml.2019.104047

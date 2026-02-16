@@ -1,0 +1,13 @@
+{
+  "name": "affect-experiment-platform",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "backend"
+  ],
+  "scripts": {
+    "lint": "echo 'configure linting'",
+    "test": "echo 'configure tests'",
+    "build": "echo 'configure build pipeline'"
+  }
+}

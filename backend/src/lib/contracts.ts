@@ -61,6 +61,8 @@ export interface KeyDownEvent extends BaseEvent {
 export interface KeyUpEvent extends BaseEvent {
   type: "KEYUP";
   hold_id: string;
+  start_word_index?: number;
+  start_t_rel_ms?: number;
   end_word_index: number;
   auto_closed?: boolean;
 }
@@ -71,6 +73,22 @@ export interface EventBatchRequest {
   session_id: string;
   run_id: string;
   events: ExperimentEvent[];
+}
+
+export type SegmentShiftDecision = "yes" | "no" | "not_sure";
+export type SegmentDirection = "more_positive" | "more_negative" | "mixed" | "unsure";
+
+export interface RatingSaveRequest {
+  session_id: string;
+  lease_token: string;
+  hold_id: string;
+  stimulus_id: string;
+  run_id: string;
+  shift_decision: SegmentShiftDecision;
+  direction: SegmentDirection;
+  feeling_before?: string;
+  feeling_after?: string;
+  confidence: number;
 }
 
 export interface AdminSummaryRequest {

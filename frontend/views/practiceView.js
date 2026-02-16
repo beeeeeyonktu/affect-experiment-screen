@@ -3,7 +3,6 @@ import { PRACTICE_RUNS } from "../config.js";
 export function renderPracticeView(root, { state, saveLocal, setUiStep, render, runtime }) {
   const idx = state.practice_index;
   const currentNumber = idx + 1;
-  const allPassed = state.practice_passed.every(Boolean);
 
   root.innerHTML = `
     <p><strong>Instructions:</strong> This is a practice run. Use <kbd>Space</kbd> in the same way as the real task.</p>
@@ -12,7 +11,6 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
     <p class="muted" id="practiceFeedback">${state.practice_feedback || ""}</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button id="startPractice">Start Practice Text</button>
-      <button id="nextPractice" ${state.practice_passed[idx] ? "" : "disabled"}>${idx < PRACTICE_RUNS - 1 ? "Continue to Next Practice" : "Continue to Main Task"}</button>
       <button id="changeSpeed">Change Text Speed</button>
       <button id="backIntro">Back to Instructions</button>
     </div>
@@ -22,11 +20,9 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
   const textEl = root.querySelector("#practiceText");
   const feedbackEl = root.querySelector("#practiceFeedback");
   const startBtn = root.querySelector("#startPractice");
-  const nextBtn = root.querySelector("#nextPractice");
 
   startBtn.onclick = async () => {
     startBtn.disabled = true;
-    nextBtn.disabled = true;
     feedbackEl.textContent = "";
     state.practice_feedback = "";
     saveLocal();
@@ -36,6 +32,20 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
       if (passed) {
         state.practice_passed[idx] = true;
         state.practice_feedback = "Practice completed. Good use of the space bar.";
+        saveLocal();
+        if (idx < PRACTICE_RUNS - 1) {
+          state.practice_index += 1;
+          state.practice_feedback = "";
+          saveLocal();
+          render();
+          return;
+        }
+        if (state.practice_passed.every(Boolean)) {
+          state.practice_feedback = "";
+          saveLocal();
+          setUiStep("main");
+          return;
+        }
       } else {
         state.practice_passed[idx] = false;
         state.practice_feedback = "Please redo this practice text and use the space bar when your internal feeling is uncertain.";
@@ -45,24 +55,6 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
     } catch (error) {
       feedbackEl.textContent = error instanceof Error ? error.message : "Practice failed";
       startBtn.disabled = false;
-    }
-  };
-
-  nextBtn.onclick = () => {
-    if (!state.practice_passed[idx]) return;
-
-    if (idx < PRACTICE_RUNS - 1) {
-      state.practice_index += 1;
-      state.practice_feedback = "";
-      saveLocal();
-      render();
-      return;
-    }
-
-    if (allPassed) {
-      state.practice_feedback = "";
-      saveLocal();
-      setUiStep("main");
     }
   };
 

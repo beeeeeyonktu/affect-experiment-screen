@@ -6,13 +6,31 @@ export const SPEED_GROUPS = {
 
 export const MAIN_RUNS = 3;
 export const PRACTICE_RUNS = 2;
+export const FEELING_LABELS = [
+  "interest",
+  "joy",
+  "pleasure",
+  "pride",
+  "amusement",
+  "relief",
+  "contentment",
+  "love",
+  "anger",
+  "fear",
+  "anxiety",
+  "sadness",
+  "shame",
+  "guilt",
+  "disgust",
+  "contempt"
+];
 
 export const CALIBRATION_SAMPLE =
   "In this task, words appear one by one. Hold the space bar when your internal feeling becomes uncertain, and release when your interpretation settles.";
 
 export const PRACTICE_TEXTS = [
-  "Mina read the message twice, then laughed out loud in her kitchen. She was sure she had been chosen for the lead role, and her chest felt light and warm as she called her sister with the news. She started planning what she would wear to the first rehearsal and even opened a new notebook for ideas. Ten minutes later, another email arrived. It began with an apology. There had been a mix-up, and final decisions would not be made until next week. Mina put her phone down, stared at the same line again, and felt that bright certainty collapse into a quiet, unsettled wait.",
-  "The crowd was already on its feet when the lights dropped and the first chord rang out. Friends shouted over the music, grinning, arms around each other, as the room filled with that electric feeling that tonight would be unforgettable. Then the singer stepped to the mic and asked for calm. The sound system had failed, and the set would be acoustic only. Some people cheered, others groaned, and the energy shifted all at once. The noise softened into something thinner and uncertain. As the first stripped-back song began, the room slowly changed again, moving from frustration into a different kind of closeness."
+  "Mina read the message twice and smiled, sure she had been chosen for the lead role. She called her sister immediately, already planning what to wear for rehearsal. Ten minutes later, another email arrived with an apology: final decisions had not been made yet. Mina put her phone down, reread the line, and felt that bright certainty turn into an uneasy wait.",
+  "The crowd cheered as the lights dropped and the first chord rang out. Friends shouted and grinned, convinced the night would be unforgettable. Then the singer asked for calm: the sound system had failed, so the set would be acoustic only. Some people groaned, others listened, and the room shifted from excitement to uncertainty before settling into a quieter closeness."
 ];
 
 export const INTRO_SLIDES = [
@@ -41,5 +59,10 @@ export const INTRO_SLIDES = [
     image: "/graphics/image_5.png",
     body:
       "This image is only an example of how your presses map onto text during analysis. <strong>You will not see yellow highlighting while you are doing the task.</strong>"
+  },
+  {
+    title: "Questions after each text",
+    image: "/graphics/image_6.png",
+    body: "After each full text, you will answer a few short questions about each detected change."
   }
 ];

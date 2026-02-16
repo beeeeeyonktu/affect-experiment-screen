@@ -105,7 +105,7 @@ function renderSessions(rows) {
 }
 
 function renderDetail(detail) {
-  const stimuliHtml = renderStimuli(detail.stimuli || [], detail.events || []);
+  const stimuliHtml = renderStimuli(detail.stimuli || [], detail.holds || [], detail.events || []);
   const root = document.querySelector("#detail");
   root.innerHTML = `
     <h2>Session Detail</h2>
@@ -115,6 +115,8 @@ function renderDetail(detail) {
     <pre>${JSON.stringify(detail.assignments, null, 2)}</pre>
     <h3>Events ${detail.events_truncated ? "(truncated)" : ""}</h3>
     <pre>${JSON.stringify(detail.events, null, 2)}</pre>
+    <h3>Holds</h3>
+    <pre>${JSON.stringify(detail.holds || [], null, 2)}</pre>
     <h3>Stimuli With Highlighted Press Spans</h3>
     ${stimuliHtml}
   `;
@@ -129,53 +131,14 @@ function escapeHtml(s) {
     .replaceAll("'", "&#39;");
 }
 
-function reconstructSegments(events, stimulusId) {
-  const relevant = events.filter((e) => e && e.stimulus_id === stimulusId && (e.type === "KEYDOWN" || e.type === "KEYUP"));
-  const byRun = new Map();
-
-  for (const ev of relevant) {
-    const run = typeof ev.run_id === "string" ? ev.run_id : "unknown";
-    if (!byRun.has(run)) byRun.set(run, []);
-    byRun.get(run).push(ev);
-  }
-
-  const allSegments = [];
-  for (const [runId, runEvents] of byRun.entries()) {
-    runEvents.sort((a, b) => Number(a.client_event_seq || 0) - Number(b.client_event_seq || 0));
-    const openHolds = new Map();
-    for (const ev of runEvents) {
-      const holdId = typeof ev.hold_id === "string" ? ev.hold_id : "";
-      if (ev.type === "KEYDOWN") {
-        const start = Number(ev.start_word_index);
-        if (holdId && Number.isFinite(start)) openHolds.set(holdId, start);
-        continue;
-      }
-      if (ev.type === "KEYUP") {
-        const end = Number(ev.end_word_index);
-        const start = holdId ? openHolds.get(holdId) : undefined;
-        if (Number.isFinite(start) && Number.isFinite(end)) {
-          allSegments.push({
-            run_id: runId,
-            start_word_index: Math.min(start, end),
-            end_word_index: Math.max(start, end)
-          });
-        }
-        if (holdId) openHolds.delete(holdId);
-      }
-    }
-  }
-
-  return allSegments;
-}
-
-function renderHighlightedText(text, segments) {
+function renderHighlightedText(text, holds) {
   const words = String(text || "").trim().split(/\s+/).filter(Boolean);
   if (!words.length) return "<p class=\"muted\">No text stored for this stimulus.</p>";
 
   const marks = new Array(words.length).fill(false);
-  for (const seg of segments) {
-    const start = Math.max(0, Math.min(words.length - 1, Number(seg.start_word_index)));
-    const end = Math.max(0, Math.min(words.length - 1, Number(seg.end_word_index)));
+  for (const hold of holds) {
+    const start = Math.max(0, Math.min(words.length - 1, Number(hold.start_word_index)));
+    const end = Math.max(0, Math.min(words.length - 1, Number(hold.end_word_index)));
     for (let i = start; i <= end; i += 1) marks[i] = true;
   }
 
@@ -186,13 +149,13 @@ function renderHighlightedText(text, segments) {
   return `<p style="line-height:1.8">${html}</p>`;
 }
 
-function renderStimuli(stimuli, events) {
+function renderStimuli(stimuli, holds, events) {
   const ordered = [...stimuli].sort((a, b) => Number(a.stimulus_order) - Number(b.stimulus_order));
   if (!ordered.length) return "<p class=\"muted\">No assigned stimuli for this session.</p>";
 
   return ordered
     .map((s) => {
-      const segs = reconstructSegments(events, s.stimulus_id);
+      const segs = holds.filter((x) => x && x.stimulus_id === s.stimulus_id);
       const byRun = new Map();
       for (const seg of segs) {
         if (!byRun.has(seg.run_id)) byRun.set(seg.run_id, 0);

@@ -2,6 +2,7 @@ import { handler as adminResultsSummary } from "./handlers/adminResultsSummary.j
 import { handler as adminSessionDetail } from "./handlers/adminSessionDetail.js";
 import { handler as calibrationSave } from "./handlers/calibrationSave.js";
 import { handler as eventsBatch } from "./handlers/eventsBatch.js";
+import { handler as ratingsSave } from "./handlers/ratingsSave.js";
 import { handler as sessionComplete } from "./handlers/sessionComplete.js";
 import { handler as sessionHeartbeat } from "./handlers/sessionHeartbeat.js";
 import { handler as sessionStart } from "./handlers/sessionStart.js";
@@ -23,6 +24,9 @@ export async function handler(event) {
     }
     if (method === "POST" && event.rawPath.endsWith("/events/batch")) {
         return eventsBatch(event);
+    }
+    if (method === "POST" && event.rawPath.endsWith("/ratings/save")) {
+        return ratingsSave(event);
     }
     if (method === "POST" && event.rawPath.endsWith("/stimulus/next")) {
         return stimulusNext(event);

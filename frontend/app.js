@@ -7,6 +7,7 @@ import { renderCalibrationView } from "./views/calibrationView.js";
 import { renderEndView } from "./views/endView.js";
 import { renderIntroView } from "./views/introView.js";
 import { renderMainTaskView } from "./views/mainTaskView.js";
+import { renderAnnotationView } from "./views/annotationView.js";
 import { renderPracticeView } from "./views/practiceView.js";
 
 const runtime = createExperimentRuntime({
@@ -62,6 +63,7 @@ function render() {
   if (state.ui_step === "calibration") return renderCalibrationView(root, viewCtx);
   if (state.ui_step === "practice") return renderPracticeView(root, viewCtx);
   if (state.ui_step === "main") return renderMainTaskView(root, viewCtx);
+  if (state.ui_step === "annotate") return renderAnnotationView(root, viewCtx);
   return renderEndView(root, viewCtx);
 }
 

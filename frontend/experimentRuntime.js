@@ -61,26 +61,46 @@ export function createExperimentRuntime({ state, saveLocal, api, getUnsentEvents
     if (state.holding) return;
 
     const hold_id = uuid();
-    state.holding = { hold_id, start_word_index: state.currentWordIndex };
-    await appendEvent({
+    const keydown = {
       ...makeBaseEvent("KEYDOWN"),
       hold_id,
       start_word_index: state.currentWordIndex
+    };
+    state.holding = {
+      hold_id,
+      start_word_index: state.currentWordIndex,
+      start_t_rel_ms: keydown.t_rel_ms
+    };
+    await appendEvent({
+      ...keydown
     });
   }
 
   async function closeMainHold(auto_closed = false) {
     if (!state.holding) return;
     if (!state.run_id || !state.session_id || !state.stimulus_id) return;
-    const { hold_id } = state.holding;
+    const { hold_id, start_word_index, start_t_rel_ms } = state.holding;
     state.holding = null;
-
-    await appendEvent({
+    const end_word_index = state.currentWordIndex;
+    const keyup = {
       ...makeBaseEvent("KEYUP"),
       hold_id,
-      end_word_index: state.currentWordIndex,
+      start_word_index,
+      start_t_rel_ms,
+      end_word_index,
       auto_closed
-    });
+    };
+
+    await appendEvent(keyup);
+
+    if (Array.isArray(state.current_run_holds)) {
+      state.current_run_holds.push({
+        hold_id,
+        start_word_index,
+        end_word_index,
+        auto_closed
+      });
+    }
   }
 
   async function onKeyUp(e) {
@@ -188,6 +208,7 @@ export function createExperimentRuntime({ state, saveLocal, api, getUnsentEvents
 
     state.run_id = uuid();
     state.client_event_seq = 1;
+    state.current_run_holds = [];
     saveLocal();
 
     await emitLifecycle("RUN_START");
@@ -199,6 +220,14 @@ export function createExperimentRuntime({ state, saveLocal, api, getUnsentEvents
     await closeMainHold(true);
     await emitLifecycle("REVEAL_END");
     await flushEvents();
+
+    return {
+      session_id: state.session_id,
+      stimulus_id: state.stimulus_id,
+      run_id: state.run_id,
+      text: state.stimulus_text,
+      holds: Array.isArray(state.current_run_holds) ? state.current_run_holds : []
+    };
   }
 
   function startHeartbeat() {

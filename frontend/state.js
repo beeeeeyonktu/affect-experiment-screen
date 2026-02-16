@@ -26,6 +26,7 @@ function createInitialState() {
     main_completed: 0,
     main_running: false,
     main_ready_continue: false,
+    annotation: null,
 
     stimulus_category: null,
     stimulus_id: null,
@@ -68,7 +69,7 @@ export function loadLocal() {
   if (typeof state.client_event_seq !== "number" || !Number.isFinite(state.client_event_seq)) {
     state.client_event_seq = 1;
   }
-  if (!["intro", "calibration", "practice", "main", "end"].includes(state.ui_step)) {
+  if (!["intro", "calibration", "practice", "main", "annotate", "end"].includes(state.ui_step)) {
     state.ui_step = "intro";
   }
 
@@ -83,6 +84,10 @@ export function loadLocal() {
 export function establishUiStep() {
   if (state.main_completed >= MAIN_RUNS) {
     state.ui_step = "end";
+    return;
+  }
+  if (state.annotation && Array.isArray(state.annotation.holds) && state.annotation.holds.length > 0) {
+    state.ui_step = "annotate";
     return;
   }
   if (state.practice_passed.every(Boolean)) {

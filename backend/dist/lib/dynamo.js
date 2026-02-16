@@ -12,6 +12,8 @@ const STIMULUS_TABLE = envOr("STIMULUS_TABLE", "affect-exp-stimulus");
 const SESSION_STIMULI_TABLE = envOr("SESSION_STIMULI_TABLE", "affect-exp-session-stimuli");
 const ASSIGNMENT_COUNTERS_TABLE = envOr("ASSIGNMENT_COUNTERS_TABLE", "affect-exp-assignment-counters");
 const EVENTS_TABLE = envOr("EVENTS_TABLE", "affect-exp-events");
+const HOLDS_TABLE = envOr("HOLDS_TABLE", "affect-exp-holds");
+const RATINGS_TABLE = envOr("RATINGS_TABLE", "affect-exp-ratings");
 const STIMULI_PER_SESSION = Number(envOr("STIMULI_PER_SESSION", "3"));
 export async function getSession(session_id) {
     const out = await ddb.send(new GetCommand({ TableName: SESSIONS_TABLE, Key: { session_id } }));
@@ -108,6 +110,30 @@ export async function putEvent(event) {
         TableName: EVENTS_TABLE,
         Item: event,
         ConditionExpression: "attribute_not_exists(session_id) AND attribute_not_exists(event_key)"
+    }));
+}
+export async function putHold(hold) {
+    await ddb.send(new PutCommand({
+        TableName: HOLDS_TABLE,
+        Item: hold,
+        ConditionExpression: "attribute_not_exists(session_id) AND attribute_not_exists(hold_id)"
+    }));
+}
+export async function getHold(session_id, hold_id) {
+    const out = await ddb.send(new GetCommand({
+        TableName: HOLDS_TABLE,
+        Key: { session_id, hold_id }
+    }));
+    return out.Item ?? null;
+}
+export async function putHoldRating(rating) {
+    const rating_key = rating.hold_id;
+    await ddb.send(new PutCommand({
+        TableName: RATINGS_TABLE,
+        Item: {
+            rating_key,
+            ...rating
+        }
     }));
 }
 export async function isStimulusAssignedToSession(session_id, stimulus_id) {
@@ -334,6 +360,15 @@ async function listEventsForSession(session_id, limit) {
         truncated: Boolean(out.LastEvaluatedKey)
     };
 }
+async function listHoldsForSession(session_id) {
+    const out = await ddb.send(new QueryCommand({
+        TableName: HOLDS_TABLE,
+        KeyConditionExpression: "session_id = :sid",
+        ExpressionAttributeValues: { ":sid": session_id }
+    }));
+    const items = out.Items ?? [];
+    return items.sort((a, b) => a.hold_id.localeCompare(b.hold_id));
+}
 export async function adminListRecentSessions(limit) {
     const out = await ddb.send(new ScanCommand({ TableName: SESSIONS_TABLE }));
     const sessions = (out.Items ?? [])
@@ -368,10 +403,11 @@ export async function adminGetSessionDetail(session_id, eventLimit) {
     const session = await getSession(session_id);
     if (!session)
         return null;
-    const [participant, assignments, eventsOut] = await Promise.all([
+    const [participant, assignments, eventsOut, holds] = await Promise.all([
         getParticipant(session.participant_id),
         listSessionStimuli(session_id),
-        listEventsForSession(session_id, eventLimit)
+        listEventsForSession(session_id, eventLimit),
+        listHoldsForSession(session_id)
     ]);
     const stimuliResolved = await Promise.all(assignments.map(async (a) => {
         const st = await getStimulusById(a.stimulus_id);
@@ -389,6 +425,7 @@ export async function adminGetSessionDetail(session_id, eventLimit) {
         participant: participant ?? undefined,
         assignments,
         stimuli: stimuliResolved,
+        holds,
         events: eventsOut.items,
         events_truncated: eventsOut.truncated
     };

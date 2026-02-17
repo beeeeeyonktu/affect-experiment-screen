@@ -1,7 +1,21 @@
 import { getSession, isStimulusAssignedToSession, markStimulusRunProgress, putEvent, putHold } from "../lib/dynamo.js";
 import { json, parseBody } from "../lib/http.js";
-import { assertString, type EventBatchRequest, type ExperimentEvent } from "../lib/contracts.js";
+import { assertString, type EventBatchRequest, type ExperimentEvent, type PopupStateLabel } from "../lib/contracts.js";
 import { isoFromMs, nowMs } from "../lib/time.js";
+
+function isConditionalFailure(error: unknown): boolean {
+  if (!error) return false;
+  const name = typeof error === "object" && error !== null && "name" in error ? String((error as { name?: unknown }).name) : "";
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message)
+      : "";
+  return (
+    name.includes("ConditionalCheckFailed") ||
+    message.includes("ConditionalCheckFailed") ||
+    message.toLowerCase().includes("conditional request failed")
+  );
+}
 
 function validateBatch(payload: EventBatchRequest) {
   assertString(payload.session_id, "session_id");
@@ -17,6 +31,20 @@ function toStoredEvent(ev: ExperimentEvent) {
     ...ev,
     t_server_received_utc_ms: nowMs()
   };
+}
+
+function parseWordIndex(ev: { word_index?: unknown; start_word_index?: unknown; end_word_index?: unknown }): number | null {
+  const candidates = [ev.word_index, ev.start_word_index, ev.end_word_index];
+  for (const v of candidates) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+  }
+  return null;
+}
+
+function parsePopupStateLabel(value: unknown): PopupStateLabel | undefined {
+  if (value === "mistake" || value === "uncertain" || value === "clear") return value;
+  return undefined;
 }
 
 export async function handler(event: { body?: string | null }) {
@@ -46,12 +74,11 @@ export async function handler(event: { body?: string | null }) {
       try {
         await putEvent(toStoredEvent(ev));
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "";
         // Idempotency: if duplicate key already exists, treat as acked.
-        if (!msg.includes("ConditionalCheckFailed")) throw error;
+        if (!isConditionalFailure(error)) throw error;
       }
 
-      if (ev.type === "KEYUP") {
+      if (ev.type === "KEYUP" || ev.type === "UNCERTAINTY_END") {
         const keyup = ev as ExperimentEvent & {
           hold_id?: unknown;
           start_word_index?: unknown;
@@ -83,6 +110,8 @@ export async function handler(event: { body?: string | null }) {
               participant_id: session.participant_id,
               stimulus_id: ev.stimulus_id,
               run_id: ev.run_id,
+              episode_type: ev.type === "KEYUP" ? "hold_interval" : "toggle_interval",
+              input_modality: session.input_modality,
               start_word_index: start,
               end_word_index: end,
               start_t_rel_ms,
@@ -92,8 +121,79 @@ export async function handler(event: { body?: string | null }) {
               created_at_utc
             });
           } catch (error) {
-            const msg = error instanceof Error ? error.message : "";
-            if (!msg.includes("ConditionalCheckFailed")) throw error;
+            if (!isConditionalFailure(error)) throw error;
+          }
+        }
+      }
+
+      if (ev.type === "UNCERTAINTY_MARK") {
+        const mark = ev as { hold_id?: unknown; word_index?: unknown; start_word_index?: unknown; end_word_index?: unknown };
+        const word_index = parseWordIndex(mark);
+        if (word_index !== null) {
+          const hold_id =
+            typeof mark.hold_id === "string" && mark.hold_id.length > 0
+              ? mark.hold_id
+              : `${ev.run_id}#${String(ev.client_event_seq).padStart(10, "0")}`;
+          const point_t = Number(ev.t_rel_ms);
+          const created_at_utc = isoFromMs(nowMs());
+          try {
+            await putHold({
+              session_id: payload.session_id,
+              hold_id,
+              participant_id: session.participant_id,
+              stimulus_id: ev.stimulus_id,
+              run_id: ev.run_id,
+              episode_type: "click_point",
+              input_modality: session.input_modality,
+              start_word_index: word_index,
+              end_word_index: word_index,
+              start_t_rel_ms: point_t,
+              end_t_rel_ms: point_t,
+              duration_ms: 0,
+              created_at_utc
+            });
+          } catch (error) {
+            if (!isConditionalFailure(error)) throw error;
+          }
+        }
+      }
+
+      if (ev.type === "STATE_SET") {
+        const stateSet = ev as {
+          hold_id?: unknown;
+          state_label?: unknown;
+          word_index?: unknown;
+          start_word_index?: unknown;
+          end_word_index?: unknown;
+        };
+        const word_index = parseWordIndex(stateSet);
+        const state_label = parsePopupStateLabel(stateSet.state_label);
+        if (word_index !== null && state_label) {
+          const hold_id =
+            typeof stateSet.hold_id === "string" && stateSet.hold_id.length > 0
+              ? stateSet.hold_id
+              : `${ev.run_id}#${String(ev.client_event_seq).padStart(10, "0")}`;
+          const point_t = Number(ev.t_rel_ms);
+          const created_at_utc = isoFromMs(nowMs());
+          try {
+            await putHold({
+              session_id: payload.session_id,
+              hold_id,
+              participant_id: session.participant_id,
+              stimulus_id: ev.stimulus_id,
+              run_id: ev.run_id,
+              episode_type: "popup_state_point",
+              input_modality: session.input_modality,
+              state_label,
+              start_word_index: word_index,
+              end_word_index: word_index,
+              start_t_rel_ms: point_t,
+              end_t_rel_ms: point_t,
+              duration_ms: 0,
+              created_at_utc
+            });
+          } catch (error) {
+            if (!isConditionalFailure(error)) throw error;
           }
         }
       }

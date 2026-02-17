@@ -2,6 +2,17 @@ import { getSession, isStimulusAssignedToSession, markStimulusRunProgress, putEv
 import { json, parseBody } from "../lib/http.js";
 import { assertString } from "../lib/contracts.js";
 import { isoFromMs, nowMs } from "../lib/time.js";
+function isConditionalFailure(error) {
+    if (!error)
+        return false;
+    const name = typeof error === "object" && error !== null && "name" in error ? String(error.name) : "";
+    const message = typeof error === "object" && error !== null && "message" in error
+        ? String(error.message)
+        : "";
+    return (name.includes("ConditionalCheckFailed") ||
+        message.includes("ConditionalCheckFailed") ||
+        message.toLowerCase().includes("conditional request failed"));
+}
 function validateBatch(payload) {
     assertString(payload.session_id, "session_id");
     assertString(payload.run_id, "run_id");
@@ -15,6 +26,20 @@ function toStoredEvent(ev) {
         ...ev,
         t_server_received_utc_ms: nowMs()
     };
+}
+function parseWordIndex(ev) {
+    const candidates = [ev.word_index, ev.start_word_index, ev.end_word_index];
+    for (const v of candidates) {
+        const n = Number(v);
+        if (Number.isFinite(n) && n >= 0)
+            return Math.floor(n);
+    }
+    return null;
+}
+function parsePopupStateLabel(value) {
+    if (value === "mistake" || value === "uncertain" || value === "clear")
+        return value;
+    return undefined;
 }
 export async function handler(event) {
     try {
@@ -50,12 +75,11 @@ export async function handler(event) {
                 await putEvent(toStoredEvent(ev));
             }
             catch (error) {
-                const msg = error instanceof Error ? error.message : "";
                 // Idempotency: if duplicate key already exists, treat as acked.
-                if (!msg.includes("ConditionalCheckFailed"))
+                if (!isConditionalFailure(error))
                     throw error;
             }
-            if (ev.type === "KEYUP") {
+            if (ev.type === "KEYUP" || ev.type === "UNCERTAINTY_END") {
                 const keyup = ev;
                 const start_word_index = Number(keyup.start_word_index);
                 const end_word_index = Number(keyup.end_word_index);
@@ -78,6 +102,8 @@ export async function handler(event) {
                             participant_id: session.participant_id,
                             stimulus_id: ev.stimulus_id,
                             run_id: ev.run_id,
+                            episode_type: ev.type === "KEYUP" ? "hold_interval" : "toggle_interval",
+                            input_modality: session.input_modality,
                             start_word_index: start,
                             end_word_index: end,
                             start_t_rel_ms,
@@ -88,8 +114,73 @@ export async function handler(event) {
                         });
                     }
                     catch (error) {
-                        const msg = error instanceof Error ? error.message : "";
-                        if (!msg.includes("ConditionalCheckFailed"))
+                        if (!isConditionalFailure(error))
+                            throw error;
+                    }
+                }
+            }
+            if (ev.type === "UNCERTAINTY_MARK") {
+                const mark = ev;
+                const word_index = parseWordIndex(mark);
+                if (word_index !== null) {
+                    const hold_id = typeof mark.hold_id === "string" && mark.hold_id.length > 0
+                        ? mark.hold_id
+                        : `${ev.run_id}#${String(ev.client_event_seq).padStart(10, "0")}`;
+                    const point_t = Number(ev.t_rel_ms);
+                    const created_at_utc = isoFromMs(nowMs());
+                    try {
+                        await putHold({
+                            session_id: payload.session_id,
+                            hold_id,
+                            participant_id: session.participant_id,
+                            stimulus_id: ev.stimulus_id,
+                            run_id: ev.run_id,
+                            episode_type: "click_point",
+                            input_modality: session.input_modality,
+                            start_word_index: word_index,
+                            end_word_index: word_index,
+                            start_t_rel_ms: point_t,
+                            end_t_rel_ms: point_t,
+                            duration_ms: 0,
+                            created_at_utc
+                        });
+                    }
+                    catch (error) {
+                        if (!isConditionalFailure(error))
+                            throw error;
+                    }
+                }
+            }
+            if (ev.type === "STATE_SET") {
+                const stateSet = ev;
+                const word_index = parseWordIndex(stateSet);
+                const state_label = parsePopupStateLabel(stateSet.state_label);
+                if (word_index !== null && state_label) {
+                    const hold_id = typeof stateSet.hold_id === "string" && stateSet.hold_id.length > 0
+                        ? stateSet.hold_id
+                        : `${ev.run_id}#${String(ev.client_event_seq).padStart(10, "0")}`;
+                    const point_t = Number(ev.t_rel_ms);
+                    const created_at_utc = isoFromMs(nowMs());
+                    try {
+                        await putHold({
+                            session_id: payload.session_id,
+                            hold_id,
+                            participant_id: session.participant_id,
+                            stimulus_id: ev.stimulus_id,
+                            run_id: ev.run_id,
+                            episode_type: "popup_state_point",
+                            input_modality: session.input_modality,
+                            state_label,
+                            start_word_index: word_index,
+                            end_word_index: word_index,
+                            start_t_rel_ms: point_t,
+                            end_t_rel_ms: point_t,
+                            duration_ms: 0,
+                            created_at_utc
+                        });
+                    }
+                    catch (error) {
+                        if (!isConditionalFailure(error))
                             throw error;
                     }
                 }

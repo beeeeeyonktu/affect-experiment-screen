@@ -9,6 +9,7 @@ import {
   UpdateCommand
 } from "@aws-sdk/lib-dynamodb";
 import { envOr } from "./env.js";
+import type { InputModality, PopupStateLabel } from "./contracts.js";
 
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client, {
@@ -26,6 +27,20 @@ const HOLDS_TABLE = envOr("HOLDS_TABLE", "affect-exp-holds");
 const RATINGS_TABLE = envOr("RATINGS_TABLE", "affect-exp-ratings");
 const STIMULI_PER_SESSION = Number(envOr("STIMULI_PER_SESSION", "3"));
 
+function isConditionalFailure(error: unknown): boolean {
+  if (!error) return false;
+  const name = typeof error === "object" && error !== null && "name" in error ? String((error as { name?: unknown }).name) : "";
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message)
+      : "";
+  return (
+    name.includes("ConditionalCheckFailed") ||
+    message.includes("ConditionalCheckFailed") ||
+    message.toLowerCase().includes("conditional request failed")
+  );
+}
+
 export interface SessionRecord {
   session_id: string;
   participant_id: string;
@@ -34,6 +49,8 @@ export interface SessionRecord {
   prolific_session_id: string;
   status: "active" | "complete";
   calibration_group?: "slow" | "medium" | "fast";
+  input_modality?: InputModality;
+  modality_version?: string;
   ms_per_word?: number;
   current_index: number;
   lease_token: string;
@@ -68,6 +85,9 @@ export interface HoldRecord {
   participant_id: string;
   stimulus_id: string;
   run_id: string;
+  episode_type: "hold_interval" | "click_point" | "toggle_interval" | "popup_state_point";
+  input_modality?: InputModality;
+  state_label?: PopupStateLabel;
   start_word_index: number;
   end_word_index: number;
   start_t_rel_ms: number;
@@ -174,6 +194,7 @@ export async function saveCalibration(
   session_id: string,
   expectedLeaseToken: string,
   calibration_group: "slow" | "medium" | "fast",
+  input_modality: InputModality,
   ms_per_word: number,
   updatedIso: string
 ) {
@@ -181,10 +202,13 @@ export async function saveCalibration(
     new UpdateCommand({
       TableName: SESSIONS_TABLE,
       Key: { session_id },
-      UpdateExpression: "SET calibration_group = :group, ms_per_word = :ms, updated_at_utc = :updated",
+      UpdateExpression:
+        "SET calibration_group = :group, input_modality = :modality, modality_version = :mver, ms_per_word = :ms, updated_at_utc = :updated",
       ConditionExpression: "lease_token = :lease",
       ExpressionAttributeValues: {
         ":group": calibration_group,
+        ":modality": input_modality,
+        ":mver": "v1",
         ":ms": ms_per_word,
         ":updated": updatedIso,
         ":lease": expectedLeaseToken
@@ -306,8 +330,7 @@ export async function markStimulusRunProgress(session_id: string, stimulus_id: s
         })
       );
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "";
-      if (!msg.includes("ConditionalCheckFailed")) throw error;
+      if (!isConditionalFailure(error)) throw error;
     }
     return;
   }
@@ -329,8 +352,7 @@ export async function markStimulusRunProgress(session_id: string, stimulus_id: s
       })
     );
   } catch (error) {
-    const msg = error instanceof Error ? error.message : "";
-    if (!msg.includes("ConditionalCheckFailed")) throw error;
+    if (!isConditionalFailure(error)) throw error;
   }
 }
 

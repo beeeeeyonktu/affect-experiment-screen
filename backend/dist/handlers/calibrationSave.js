@@ -9,6 +9,7 @@ const CALIBRATION_SPEEDS = {
     medium: 250,
     fast: 200
 };
+const ALLOWED_MODALITIES = ["hold", "click_mark", "toggle_state", "popup_state"];
 export async function handler(event) {
     try {
         const body = parseBody(event.body);
@@ -18,16 +19,21 @@ export async function handler(event) {
             throw new Error("Invalid calibration_group");
         }
         const calibration_group = body.calibration_group;
+        const input_modality = (body.input_modality ?? "hold");
+        if (!ALLOWED_MODALITIES.includes(input_modality)) {
+            throw new Error("Invalid input_modality");
+        }
         const session = await getSession(session_id);
         if (!session)
             return json(404, { ok: false, error: "session not found" });
         if (session.lease_token !== lease_token)
             return json(409, { ok: false, active_elsewhere: true });
         const ms_per_word = CALIBRATION_SPEEDS[calibration_group];
-        await saveCalibration(session_id, lease_token, calibration_group, ms_per_word, isoFromMs(nowMs()));
+        await saveCalibration(session_id, lease_token, calibration_group, input_modality, ms_per_word, isoFromMs(nowMs()));
         return json(200, {
             ok: true,
             calibration_group,
+            input_modality,
             ms_per_word
         });
     }

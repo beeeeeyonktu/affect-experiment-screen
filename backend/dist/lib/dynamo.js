@@ -15,6 +15,17 @@ const EVENTS_TABLE = envOr("EVENTS_TABLE", "affect-exp-events");
 const HOLDS_TABLE = envOr("HOLDS_TABLE", "affect-exp-holds");
 const RATINGS_TABLE = envOr("RATINGS_TABLE", "affect-exp-ratings");
 const STIMULI_PER_SESSION = Number(envOr("STIMULI_PER_SESSION", "3"));
+function isConditionalFailure(error) {
+    if (!error)
+        return false;
+    const name = typeof error === "object" && error !== null && "name" in error ? String(error.name) : "";
+    const message = typeof error === "object" && error !== null && "message" in error
+        ? String(error.message)
+        : "";
+    return (name.includes("ConditionalCheckFailed") ||
+        message.includes("ConditionalCheckFailed") ||
+        message.toLowerCase().includes("conditional request failed"));
+}
 export async function getSession(session_id) {
     const out = await ddb.send(new GetCommand({ TableName: SESSIONS_TABLE, Key: { session_id } }));
     return out.Item ?? null;
@@ -91,14 +102,16 @@ export async function completeSession(session_id, expectedLeaseToken, updatedIso
         }
     }));
 }
-export async function saveCalibration(session_id, expectedLeaseToken, calibration_group, ms_per_word, updatedIso) {
+export async function saveCalibration(session_id, expectedLeaseToken, calibration_group, input_modality, ms_per_word, updatedIso) {
     await ddb.send(new UpdateCommand({
         TableName: SESSIONS_TABLE,
         Key: { session_id },
-        UpdateExpression: "SET calibration_group = :group, ms_per_word = :ms, updated_at_utc = :updated",
+        UpdateExpression: "SET calibration_group = :group, input_modality = :modality, modality_version = :mver, ms_per_word = :ms, updated_at_utc = :updated",
         ConditionExpression: "lease_token = :lease",
         ExpressionAttributeValues: {
             ":group": calibration_group,
+            ":modality": input_modality,
+            ":mver": "v1",
             ":ms": ms_per_word,
             ":updated": updatedIso,
             ":lease": expectedLeaseToken
@@ -189,8 +202,7 @@ export async function markStimulusRunProgress(session_id, stimulus_id, run_id, d
             }));
         }
         catch (error) {
-            const msg = error instanceof Error ? error.message : "";
-            if (!msg.includes("ConditionalCheckFailed"))
+            if (!isConditionalFailure(error))
                 throw error;
         }
         return;
@@ -211,8 +223,7 @@ export async function markStimulusRunProgress(session_id, stimulus_id, run_id, d
         }));
     }
     catch (error) {
-        const msg = error instanceof Error ? error.message : "";
-        if (!msg.includes("ConditionalCheckFailed"))
+        if (!isConditionalFailure(error))
             throw error;
     }
 }

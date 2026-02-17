@@ -25,10 +25,10 @@ export const api = {
   sessionStart: (secured_url_jwt) => req("/session/start", { secured_url_jwt }),
   heartbeat: (session_id, lease_token) => req("/session/heartbeat", { session_id, lease_token }),
   sessionComplete: (session_id, lease_token) => req("/session/complete", { session_id, lease_token }),
-  calibrationSave: (session_id, lease_token, calibration_group) =>
-    req("/calibration/save", { session_id, lease_token, calibration_group }),
+  calibrationSave: (session_id, lease_token, calibration_group, input_modality = "hold") =>
+    req("/calibration/save", { session_id, lease_token, calibration_group, input_modality }),
   ratingsSave: (payload) => req("/ratings/save", payload),
-  stimulusNext: (session_id, category = null) => req("/stimulus/next", { session_id, category }),
+  stimulusNext: (session_id) => req("/stimulus/next", { session_id }),
   eventsBatch: (session_id, run_id, events, keepalive = false) =>
     req("/events/batch", { session_id, run_id, events }, keepalive)
 };

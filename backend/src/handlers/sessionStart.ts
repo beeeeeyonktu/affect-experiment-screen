@@ -26,6 +26,8 @@ export async function handler(event: { body?: string | null }) {
       prolific_pid: claims.PROLIFIC_PID,
       prolific_session_id: claims.SESSION_ID,
       status: "active" as const,
+      input_modality: "hold" as const,
+      modality_version: "v1",
       current_index: 0,
       lease_token,
       lease_expires_at_utc: isoFromMs(now + LEASE_SECONDS * 1000),

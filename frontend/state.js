@@ -8,6 +8,7 @@ function createInitialState() {
     session_id: null,
     lease_token: null,
     calibration_group: null,
+    input_modality: "hold",
     ms_per_word: null,
 
     stage: "calibration",
@@ -20,6 +21,8 @@ function createInitialState() {
     practice_passed: new Array(PRACTICE_RUNS).fill(false),
     practice_active: false,
     practice_holding: null,
+    practice_paused: false,
+    practice_popup_pending: false,
     practice_holds: [],
     practice_feedback: "",
 
@@ -28,13 +31,17 @@ function createInitialState() {
     main_ready_continue: false,
     annotation: null,
 
-    stimulus_category: null,
     stimulus_id: null,
     stimulus_text: null,
     run_id: null,
     client_event_seq: 1,
     currentWordIndex: -1,
     holding: null,
+    toggle_holding: null,
+    popup_pending: false,
+    main_paused: false,
+    last_click_mark_ms: 0,
+    practice_last_click_mark_ms: 0,
     eventBuffer: [],
     flushTimer: null,
     heartbeatTimer: null
@@ -66,6 +73,9 @@ export function loadLocal() {
     state.practice_passed = new Array(PRACTICE_RUNS).fill(false);
   }
   if (typeof state.run_id !== "string") state.run_id = null;
+  if (!["hold", "click_mark", "toggle_state", "popup_state"].includes(state.input_modality)) {
+    state.input_modality = "hold";
+  }
   if (typeof state.client_event_seq !== "number" || !Number.isFinite(state.client_event_seq)) {
     state.client_event_seq = 1;
   }
@@ -79,6 +89,10 @@ export function loadLocal() {
   state.main_ready_continue = false;
   state.practice_active = false;
   state.practice_holding = null;
+  state.practice_paused = false;
+  state.practice_popup_pending = false;
+  state.last_click_mark_ms = 0;
+  state.practice_last_click_mark_ms = 0;
 }
 
 export function establishUiStep() {

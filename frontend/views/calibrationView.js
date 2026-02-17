@@ -123,7 +123,23 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
   let togglePreviewUnstable = false;
   let popupPreviewPending = false;
   const words = CALIBRATION_SAMPLE.split(/\s+/);
+  let previewSpans = [];
   let i = 0;
+
+  const renderPreviewMaskedWords = () => {
+    calibrationText.innerHTML = "";
+    previewSpans = [];
+    words.forEach((word, idx) => {
+      const span = document.createElement("span");
+      span.className = "iterWord iterWord--hidden";
+      span.textContent = word;
+      calibrationText.appendChild(span);
+      previewSpans.push(span);
+      if (idx < words.length - 1) {
+        calibrationText.appendChild(document.createTextNode(" "));
+      }
+    });
+  };
 
   const stopPreview = () => {
     if (!previewTimer) return;
@@ -133,14 +149,18 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
 
   const playPreview = () => {
     stopPreview();
-    calibrationText.textContent = "";
+    renderPreviewMaskedWords();
     i = 0;
     previewTimer = setInterval(() => {
       if (i >= words.length) {
-        calibrationText.textContent = "";
+        previewSpans.forEach((span) => {
+          span.classList.remove("iterWord--shown");
+          span.classList.add("iterWord--hidden");
+        });
         i = 0;
       }
-      calibrationText.textContent += (i === 0 ? "" : " ") + words[i];
+      previewSpans[i].classList.remove("iterWord--hidden");
+      previewSpans[i].classList.add("iterWord--shown");
       i += 1;
     }, SPEED_GROUPS[selected].ms);
   };

@@ -113,6 +113,17 @@
           transform: translateX(320%);
         }
       }
+      .iterWord {
+        transition: none;
+      }
+      .iterWord--hidden {
+        filter: blur(5px);
+        opacity: 0.58;
+      }
+      .iterWord--shown {
+        filter: blur(0);
+        opacity: 1;
+      }
     </style>
   </head>
   <body>

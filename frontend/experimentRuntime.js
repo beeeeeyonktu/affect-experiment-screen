@@ -13,6 +13,22 @@ function modality(state) {
 }
 
 export function createExperimentRuntime({ state, saveLocal, api, getUnsentEvents, markSent, putOutboxEvent }) {
+  function renderMaskedWords(textEl, words) {
+    textEl.innerHTML = "";
+    const spans = [];
+    words.forEach((word, idx) => {
+      const span = document.createElement("span");
+      span.className = "iterWord iterWord--hidden";
+      span.textContent = word;
+      textEl.appendChild(span);
+      spans.push(span);
+      if (idx < words.length - 1) {
+        textEl.appendChild(document.createTextNode(" "));
+      }
+    });
+    return spans;
+  }
+
   async function appendEvent(ev) {
     if (!ev.session_id || !ev.run_id || !ev.stimulus_id) return;
     state.eventBuffer.push(ev);
@@ -364,7 +380,7 @@ export function createExperimentRuntime({ state, saveLocal, api, getUnsentEvents
   }
 
   async function revealWords(textEl, words, msPerWord, onStep) {
-    textEl.textContent = "";
+    const spans = renderMaskedWords(textEl, words);
     state.currentWordIndex = -1;
     let i = 0;
     while (i < words.length) {
@@ -375,7 +391,8 @@ export function createExperimentRuntime({ state, saveLocal, api, getUnsentEvents
         await sleep(40);
       }
       state.currentWordIndex = i;
-      textEl.textContent += (i === 0 ? "" : " ") + words[i];
+      spans[i].classList.remove("iterWord--hidden");
+      spans[i].classList.add("iterWord--shown");
       i += 1;
       if (typeof onStep === "function") onStep(i, words.length);
       await sleep(msPerWord);

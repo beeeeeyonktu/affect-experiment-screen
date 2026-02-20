@@ -19,6 +19,7 @@ export function createExperimentRuntime({ state, saveLocal, api, getUnsentEvents
     words.forEach((word, idx) => {
       const span = document.createElement("span");
       span.className = "iterWord iterWord--hidden";
+      span.dataset.wordIndex = String(idx);
       span.textContent = word;
       textEl.appendChild(span);
       spans.push(span);
@@ -94,6 +95,8 @@ export function createExperimentRuntime({ state, saveLocal, api, getUnsentEvents
 
   function beginPracticePopupPrompt() {
     state.practice_popup_pending = true;
+    state.practice_popup_mark_word_index = state.currentWordIndex;
+    state.practice_popup_marked_at_ms = Date.now();
     state.practice_paused = true;
     saveLocal();
   }
@@ -226,6 +229,7 @@ export function createExperimentRuntime({ state, saveLocal, api, getUnsentEvents
         hold_id,
         start_word_index: state.currentWordIndex,
         end_word_index: state.currentWordIndex,
+        state_label,
         auto_closed: false
       });
     }
@@ -233,6 +237,8 @@ export function createExperimentRuntime({ state, saveLocal, api, getUnsentEvents
 
   function beginPopupPrompt() {
     state.popup_pending = true;
+    state.popup_mark_word_index = state.currentWordIndex;
+    state.popup_marked_at_ms = Date.now();
     state.main_paused = true;
     saveLocal();
   }

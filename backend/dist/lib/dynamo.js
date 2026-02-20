@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanCommand, TransactWriteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { envOr } from "./env.js";
+import { isoFromMs, nowMs } from "./time.js";
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client, {
     marshallOptions: { removeUndefinedValues: true }
@@ -14,6 +15,7 @@ const ASSIGNMENT_COUNTERS_TABLE = envOr("ASSIGNMENT_COUNTERS_TABLE", "affect-exp
 const EVENTS_TABLE = envOr("EVENTS_TABLE", "affect-exp-events");
 const HOLDS_TABLE = envOr("HOLDS_TABLE", "affect-exp-holds");
 const RATINGS_TABLE = envOr("RATINGS_TABLE", "affect-exp-ratings");
+const TARGET_COUNTERS_TABLE = envOr("TARGET_COUNTERS_TABLE", "affect-exp-target-counters");
 const STIMULI_PER_SESSION = Number(envOr("STIMULI_PER_SESSION", "3"));
 function isConditionalFailure(error) {
     if (!error)
@@ -26,9 +28,39 @@ function isConditionalFailure(error) {
         message.includes("ConditionalCheckFailed") ||
         message.toLowerCase().includes("conditional request failed"));
 }
+function modalityNumber(input_modality) {
+    if (input_modality === "click_mark")
+        return 2;
+    if (input_modality === "toggle_state")
+        return 3;
+    if (input_modality === "popup_state")
+        return 4;
+    return 1;
+}
+export function buildConditionId(experiment_target, input_modality) {
+    const prefix = experiment_target === "character" ? "A" : "B";
+    return `${prefix}${modalityNumber(input_modality)}`;
+}
 export async function getSession(session_id) {
     const out = await ddb.send(new GetCommand({ TableName: SESSIONS_TABLE, Key: { session_id } }));
     return out.Item ?? null;
+}
+export async function assignExperimentTargetBalanced(override) {
+    if (override === "character" || override === "self")
+        return override;
+    const out = await ddb.send(new UpdateCommand({
+        TableName: TARGET_COUNTERS_TABLE,
+        Key: { counter_id: "global" },
+        UpdateExpression: "SET next_index = if_not_exists(next_index, :zero) + :one, updated_at_utc = :ts",
+        ExpressionAttributeValues: {
+            ":zero": 0,
+            ":one": 1,
+            ":ts": isoFromMs(nowMs())
+        },
+        ReturnValues: "UPDATED_NEW"
+    }));
+    const next = Number(out.Attributes?.next_index ?? 1);
+    return next % 2 === 1 ? "character" : "self";
 }
 export async function createParticipantSessionAndLock(input) {
     const lock_id = `STUDY#${input.study_id}#PID#${input.prolific_pid}`;
@@ -102,15 +134,16 @@ export async function completeSession(session_id, expectedLeaseToken, updatedIso
         }
     }));
 }
-export async function saveCalibration(session_id, expectedLeaseToken, calibration_group, input_modality, ms_per_word, updatedIso) {
+export async function saveCalibration(session_id, expectedLeaseToken, calibration_group, experiment_target, input_modality, ms_per_word, updatedIso) {
     await ddb.send(new UpdateCommand({
         TableName: SESSIONS_TABLE,
         Key: { session_id },
-        UpdateExpression: "SET calibration_group = :group, input_modality = :modality, modality_version = :mver, ms_per_word = :ms, updated_at_utc = :updated",
+        UpdateExpression: "SET calibration_group = :group, input_modality = :modality, condition_id = :condition_id, modality_version = :mver, ms_per_word = :ms, updated_at_utc = :updated",
         ConditionExpression: "lease_token = :lease",
         ExpressionAttributeValues: {
             ":group": calibration_group,
             ":modality": input_modality,
+            ":condition_id": buildConditionId(experiment_target, input_modality),
             ":mver": "v1",
             ":ms": ms_per_word,
             ":updated": updatedIso,
@@ -397,6 +430,9 @@ export async function adminListRecentSessions(limit) {
             participant_id: session.participant_id,
             prolific_pid: participant?.prolific_pid,
             status: session.status,
+            experiment_target: session.experiment_target,
+            condition_id: session.condition_id,
+            input_modality: session.input_modality,
             calibration_group: session.calibration_group,
             ms_per_word: session.ms_per_word,
             created_at_utc: session.created_at_utc,

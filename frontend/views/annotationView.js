@@ -1,32 +1,52 @@
-import { FEELING_LABELS, MAIN_RUNS } from "../config.js";
+import { MAIN_RUNS } from "../config.js";
 
-const SHIFT_OPTIONS = [
-  { value: "yes", label: "yes" },
-  { value: "no", label: "no (false alarm)" },
-  { value: "not_sure", label: "not sure" }
-];
+const SHIFT_VALUE_ORDER = ["yes", "no", "not_sure"];
+const DIRECTION_VALUE_ORDER = ["more_positive", "more_negative", "mixed", "unsure"];
 
-const DIRECTION_OPTIONS = [
-  { value: "more_positive", label: "more positive" },
-  { value: "more_negative", label: "more negative" },
-  { value: "mixed", label: "mixed" },
-  { value: "unsure", label: "unsure" }
-];
+function isPopupMode(state) {
+  return (state.input_modality || "hold") === "popup_state";
+}
+
+function getQuestionCopy(state) {
+  const fromCopy = state.copy_resolved?.post_shift_questions || {};
+  const validation = fromCopy.validation || {};
+  const direction = fromCopy.direction || {};
+  const confidenceLabel = state.copy_resolved?.confidence_label || "How confident are you about this shift?";
+  const validationOptions = Array.isArray(validation.options)
+    ? validation.options
+    : ["Yes", "No (false alarm)", "Not sure"];
+  const directionOptions = Array.isArray(direction.options)
+    ? direction.options
+    : ["More positive", "More negative", "Mixed", "Unsure"];
+
+  return {
+    q1:
+      typeof validation.question === "string" && validation.question.length > 0
+        ? validation.question
+        : "At this moment, did your understanding of emotional state change?",
+    q2:
+      typeof direction.question === "string" && direction.question.length > 0
+        ? direction.question
+        : "In which direction did the emotional state shift?",
+    q3: confidenceLabel,
+    shiftChoices: SHIFT_VALUE_ORDER.map((value, idx) => ({
+      value,
+      label: validationOptions[idx] || validationOptions[0] || value
+    })),
+    directionChoices: DIRECTION_VALUE_ORDER.map((value, idx) => ({
+      value,
+      label: directionOptions[idx] || directionOptions[0] || value
+    }))
+  };
+}
 
 function renderHighlightedHoldText(text, holds, activeIndex) {
   const words = text.split(/\s+/);
   const activeHold = holds[activeIndex];
   return words
     .map((word, idx) => {
-      let cls = "";
-      if (
-        activeHold &&
-        idx >= activeHold.start_word_index &&
-        idx <= activeHold.end_word_index
-      ) {
-        cls = "hl-active";
-      }
-      return cls ? `<span class="${cls}">${word}</span>` : `<span>${word}</span>`;
+      const inActive = activeHold && idx >= activeHold.start_word_index && idx <= activeHold.end_word_index;
+      return inActive ? `<span class="hl-active">${word}</span>` : `<span>${word}</span>`;
     })
     .join(" ");
 }
@@ -37,12 +57,16 @@ function ensureResponse(annotation, index) {
     annotation.responses[index] = {
       shift_decision: null,
       direction: null,
-      feeling_before: "unsure",
-      feeling_after: "unsure",
       confidence: 3
     };
   }
   return annotation.responses[index];
+}
+
+function inferPopupShiftDecision(hold, fallback) {
+  if (hold?.state_label === "mistake") return "no";
+  if (hold?.state_label === "uncertain" || hold?.state_label === "clear") return "yes";
+  return fallback || "not_sure";
 }
 
 async function saveWithRetry(api, payload) {
@@ -70,10 +94,15 @@ export function renderAnnotationView(root, { state, saveLocal, setUiStep, render
   annotation.active_index = activeIndex;
   const activeHold = annotation.holds[activeIndex];
   const response = ensureResponse(annotation, activeIndex);
-  const requiredDone = Boolean(response.shift_decision) && Boolean(response.direction);
+  const popupMode = isPopupMode(state);
+  const q = getQuestionCopy(state);
+  const quickCheckLabel = state.copy_resolved?.quick_check_label || "Quick check:";
+  const continueLabel = state.copy_resolved?.continue_button || "Next";
+  const finishLabel = state.copy_resolved?.finish_button || "Finish Text";
+  const requiredDone = popupMode ? Boolean(response.direction) : Boolean(response.shift_decision) && Boolean(response.direction);
 
   root.innerHTML = `
-    <p><strong>Quick check:</strong> You marked ${annotation.holds.length} detected change(s) in this text.</p>
+    <p><strong>${quickCheckLabel}</strong> You marked ${annotation.holds.length} detected change(s) in this text.</p>
     <p class="muted">Text ${Math.min(state.main_completed + 1, MAIN_RUNS)} of ${MAIN_RUNS} • Detected change ${activeIndex + 1} of ${annotation.holds.length}</p>
 
     <div style="line-height:1.8;min-height:140px;border:1px solid #ddd9cc;border-radius:8px;padding:10px;background:#fff;">
@@ -81,28 +110,23 @@ export function renderAnnotationView(root, { state, saveLocal, setUiStep, render
     </div>
 
     <div style="margin-top:14px;display:grid;gap:16px;">
+      ${
+        popupMode
+          ? ""
+          : `
       <div style="margin-bottom:2px;">
-        <p style="margin:0 0 6px 0;"><strong><em>At the time</em>, did you feel your internal feeling shifted here, or was this a mistake?</strong></p>
+        <p style="margin:0 0 6px 0;"><strong>${q.q1}</strong></p>
         <div id="shiftChoices" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
-      </div>
+      </div>`
+      }
 
       <div style="margin-bottom:2px;">
-        <p style="margin:0 0 6px 0;"><strong>At the time, and now with the full story context, what direction did the shift feel like?</strong></p>
+        <p style="margin:0 0 6px 0;"><strong>${q.q2}</strong></p>
         <div id="directionChoices" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
       </div>
 
-      <div style="margin-bottom:2px;">
-        <p style="margin:0 0 6px 0;"><strong>If you had to label the feeling change, what was the feeling <em>before</em> the change?</strong></p>
-        <div id="beforeChoices" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
-      </div>
-
-      <div style="margin-bottom:2px;">
-        <p style="margin:0 0 6px 0;"><strong>If you had to label the feeling change, what was the feeling <em>after</em> the change?</strong></p>
-        <div id="afterChoices" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
-      </div>
-
       <div>
-        <p style="margin:0 0 6px 0;"><strong>How confident are you that this feeling shift reflects what the story intended? (There are no right answers.)</strong></p>
+        <p style="margin:0 0 6px 0;"><strong>${q.q3}</strong></p>
         <input id="confidence" type="range" min="1" max="5" step="1" value="${response.confidence}" />
         <span id="confidenceVal">${response.confidence}</span>/5
       </div>
@@ -110,10 +134,10 @@ export function renderAnnotationView(root, { state, saveLocal, setUiStep, render
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
       <button id="nextSegment" ${requiredDone ? "" : "disabled"}>
-        ${activeIndex === annotation.holds.length - 1 ? "Finish Text" : "Next Detected Change"}
+        ${activeIndex === annotation.holds.length - 1 ? finishLabel : continueLabel}
       </button>
     </div>
-    <p class="muted" style="margin-top:6px;">Select the first two required questions to continue.</p>
+    <p class="muted" style="margin-top:6px;">${popupMode ? "Select direction to continue." : "Select the required questions to continue."}</p>
     <p id="annotationError" class="muted" style="color:#9b1c1c;"></p>
   `;
 
@@ -126,34 +150,19 @@ export function renderAnnotationView(root, { state, saveLocal, setUiStep, render
     });
   }
 
-  function renderSingleFeeling(el, selected, key) {
-    const options = ["unsure", ...FEELING_LABELS];
-    el.innerHTML = options
-      .map((label) => `<button class="choiceChip ${selected === label ? "selected" : ""}" data-label="${label}">${label}</button>`)
-      .join("");
-    [...el.querySelectorAll("button")].forEach((btn) => {
-      btn.onclick = () => {
-        response[key] = btn.dataset.label || "";
-        saveLocal();
-        render();
-      };
+  if (!popupMode) {
+    renderChoiceChips(root.querySelector("#shiftChoices"), q.shiftChoices, response.shift_decision, (value) => {
+      response.shift_decision = value;
+      saveLocal();
+      render();
     });
   }
 
-  renderChoiceChips(root.querySelector("#shiftChoices"), SHIFT_OPTIONS, response.shift_decision, (value) => {
-    response.shift_decision = value;
-    saveLocal();
-    render();
-  });
-
-  renderChoiceChips(root.querySelector("#directionChoices"), DIRECTION_OPTIONS, response.direction, (value) => {
+  renderChoiceChips(root.querySelector("#directionChoices"), q.directionChoices, response.direction, (value) => {
     response.direction = value;
     saveLocal();
     render();
   });
-
-  renderSingleFeeling(root.querySelector("#beforeChoices"), response.feeling_before || "unsure", "feeling_before");
-  renderSingleFeeling(root.querySelector("#afterChoices"), response.feeling_after || "unsure", "feeling_after");
 
   root.querySelector("#confidence").oninput = (e) => {
     response.confidence = Number(e.target.value);
@@ -165,7 +174,9 @@ export function renderAnnotationView(root, { state, saveLocal, setUiStep, render
     const errEl = root.querySelector("#annotationError");
     errEl.textContent = "";
     if (!requiredDone) {
-      errEl.textContent = "Please answer the first two required questions.";
+      errEl.textContent = popupMode
+        ? "Please answer direction before continuing."
+        : "Please answer the required questions.";
       return;
     }
     if (!activeHold.hold_id) {
@@ -181,10 +192,10 @@ export function renderAnnotationView(root, { state, saveLocal, setUiStep, render
         hold_id: activeHold.hold_id,
         stimulus_id: annotation.stimulus_id,
         run_id: annotation.run_id,
-        shift_decision: response.shift_decision,
+        shift_decision: popupMode
+          ? inferPopupShiftDecision(activeHold, response.shift_decision)
+          : response.shift_decision,
         direction: response.direction,
-        feeling_before: response.feeling_before || undefined,
-        feeling_after: response.feeling_after || undefined,
         confidence: response.confidence
       });
       errEl.textContent = "";

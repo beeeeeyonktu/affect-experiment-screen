@@ -1,4 +1,4 @@
-import { createParticipantSessionAndLock } from "../lib/dynamo.js";
+import { assignExperimentTargetBalanced, buildConditionId, createParticipantSessionAndLock } from "../lib/dynamo.js";
 import { json, parseBody } from "../lib/http.js";
 import { newLeaseToken, newSessionId } from "../lib/ids.js";
 import { verifyProlificSecuredUrlJwt } from "../lib/prolific.js";
@@ -6,11 +6,19 @@ import { isoFromMs, nowMs } from "../lib/time.js";
 import { assertString } from "../lib/contracts.js";
 import { envOr } from "../lib/env.js";
 const LEASE_SECONDS = Number(envOr("LEASE_SECONDS", "45"));
+function normalizeModality(input) {
+    if (input === "click_mark" || input === "toggle_state" || input === "popup_state" || input === "hold") {
+        return input;
+    }
+    return "hold";
+}
 export async function handler(event) {
     try {
         const body = parseBody(event.body);
         const securedJwt = assertString(body.secured_url_jwt, "secured_url_jwt");
         const claims = await verifyProlificSecuredUrlJwt(securedJwt);
+        const input_modality = normalizeModality(body.input_modality);
+        const experiment_target = await assignExperimentTargetBalanced(body.experiment_target_override);
         const now = nowMs();
         const participant_id = `${claims.STUDY_ID}#${claims.PROLIFIC_PID}`;
         const session_id = newSessionId();
@@ -22,7 +30,9 @@ export async function handler(event) {
             prolific_pid: claims.PROLIFIC_PID,
             prolific_session_id: claims.SESSION_ID,
             status: "active",
-            input_modality: "hold",
+            experiment_target,
+            condition_id: buildConditionId(experiment_target, input_modality),
+            input_modality,
             modality_version: "v1",
             current_index: 0,
             lease_token,
@@ -41,7 +51,10 @@ export async function handler(event) {
             session_id,
             lease_token,
             lease_expires_at_utc: record.lease_expires_at_utc,
-            stage: "calibration"
+            stage: "calibration",
+            experiment_target: record.experiment_target,
+            input_modality: record.input_modality,
+            condition_id: record.condition_id
         });
     }
     catch (error) {

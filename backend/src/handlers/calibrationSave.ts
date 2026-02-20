@@ -31,7 +31,15 @@ export async function handler(event: { body?: string | null }) {
     if (session.lease_token !== lease_token) return json(409, { ok: false, active_elsewhere: true });
 
     const ms_per_word = CALIBRATION_SPEEDS[calibration_group];
-    await saveCalibration(session_id, lease_token, calibration_group, input_modality, ms_per_word, isoFromMs(nowMs()));
+    await saveCalibration(
+      session_id,
+      lease_token,
+      calibration_group,
+      session.experiment_target,
+      input_modality,
+      ms_per_word,
+      isoFromMs(nowMs())
+    );
     return json(200, {
       ok: true,
       calibration_group,

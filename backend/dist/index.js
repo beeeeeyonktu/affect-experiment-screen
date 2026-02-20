@@ -1,6 +1,7 @@
 import { handler as adminResultsSummary } from "./handlers/adminResultsSummary.js";
 import { handler as adminSessionDetail } from "./handlers/adminSessionDetail.js";
 import { handler as calibrationSave } from "./handlers/calibrationSave.js";
+import { handler as copyGet } from "./handlers/copyGet.js";
 import { handler as eventsBatch } from "./handlers/eventsBatch.js";
 import { handler as ratingsSave } from "./handlers/ratingsSave.js";
 import { handler as sessionComplete } from "./handlers/sessionComplete.js";
@@ -30,6 +31,9 @@ export async function handler(event) {
     }
     if (method === "POST" && event.rawPath.endsWith("/stimulus/next")) {
         return stimulusNext(event);
+    }
+    if (method === "POST" && event.rawPath.endsWith("/copy/get")) {
+        return copyGet(event);
     }
     if (method === "POST" && event.rawPath.endsWith("/admin/results/summary")) {
         return adminResultsSummary(event);

@@ -1,8 +1,11 @@
 export type InputModality = "hold" | "click_mark" | "toggle_state" | "popup_state";
 export type PopupStateLabel = "mistake" | "uncertain" | "clear";
+export type ExperimentTarget = "character" | "self";
 
 export interface SessionStartRequest {
   secured_url_jwt: string;
+  input_modality?: InputModality;
+  experiment_target_override?: ExperimentTarget;
 }
 
 export interface SessionHeartbeatRequest {
@@ -136,6 +139,12 @@ export interface AdminSummaryRequest {
 export interface AdminSessionDetailRequest {
   session_id: string;
   event_limit?: number;
+}
+
+export interface CopyGetRequest {
+  session_id?: string;
+  experiment_target?: ExperimentTarget;
+  input_modality?: InputModality;
 }
 
 export function assertString(value: unknown, field: string): string {

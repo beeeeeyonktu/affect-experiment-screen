@@ -4,22 +4,31 @@ function getModality(state) {
   return state.input_modality || "hold";
 }
 
-function getInstruction(modality) {
-  if (modality === "click_mark") {
-    return "This is the actual task. Press Space at the moment your emotional understanding of the situation starts to shift.";
-  }
-  if (modality === "toggle_state") {
-    return "This is the actual task. Press Space when your sense of the situation becomes unstable, then press Space again when it settles.";
-  }
-  if (modality === "popup_state") {
-    return "This is the actual task. Press Space when your emotional understanding shifts, then choose the state in the popup.";
-  }
-  return "This is the actual task. Hold Space whenever your internal feeling is uncertain. Release when it feels clear again.";
+function getInstruction(state, modality) {
+  const fromCopy = state.copy_resolved?.task_instruction;
+  if (typeof fromCopy === "string" && fromCopy.length > 0) return fromCopy;
+  if (modality === "hold") return "Press and hold Space when emotional state begins to change. Release when it settles.";
+  if (modality === "click_mark") return "Press Space once when emotional state begins to change.";
+  if (modality === "toggle_state") return "Press Space when emotional state starts changing, then press again when it settles.";
+  if (modality === "popup_state") return "Press Space when emotional state starts changing, then choose the current state in the popup.";
+  return "Follow the instructions for this session.";
 }
 
 export function renderMainTaskView(root, { state, saveLocal, setUiStep, render, runtime, api }) {
   const runNumber = Math.min(state.main_completed + 1, MAIN_RUNS);
   const modality = getModality(state);
+  const instructionsLabel = state.copy_resolved?.instructions_label || "Instructions:";
+  const selectOneLabel = state.copy_resolved?.select_one_label || "Select one:";
+  const popupLabels = state.copy_resolved?.popup_labels || {
+    mistake: "Press was a mistake",
+    uncertain: "Emotional state starting to change",
+    clear: "Emotional state settling"
+  };
+  const statusLabels = state.copy_resolved?.status_labels || {
+    stable: "Emotional state: stable",
+    changing: "Emotional state: changing"
+  };
+  const startButtonLabel = state.copy_resolved?.start_button || "Start Text";
 
   root.innerHTML = `
     <style>
@@ -89,7 +98,7 @@ export function renderMainTaskView(root, { state, saveLocal, setUiStep, render, 
       }
     </style>
     <div class="taskSurface">
-      <p><strong>Instructions:</strong> ${getInstruction(modality)}</p>
+      <p><strong>${instructionsLabel}</strong> ${getInstruction(state, modality)}</p>
       <p class="muted">Text ${runNumber} of ${MAIN_RUNS}</p>
       <div id="mainLoader" class="loaderWrap" hidden><div class="loaderBar"></div></div>
       <div id="text" style="line-height:1.9;min-height:220px;"></div>
@@ -98,18 +107,18 @@ export function renderMainTaskView(root, { state, saveLocal, setUiStep, render, 
       <div class="stateModal" role="dialog" aria-modal="true" aria-label="Select current emotional state">
         <form id="popupStateForm">
           <fieldset>
-            <legend>Select one:</legend>
+            <legend>${selectOneLabel}</legend>
             <label>
               <input type="radio" name="popupState" value="mistake" />
-              false alarm (no shift)
+              ${popupLabels.mistake}
             </label>
             <label>
               <input type="radio" name="popupState" value="uncertain" />
-              shift noticed, still unstable
+              ${popupLabels.uncertain}
             </label>
             <label>
               <input type="radio" name="popupState" value="clear" />
-              shift noticed, now stable
+              ${popupLabels.clear}
             </label>
           </fieldset>
           <p id="popupStateHint" class="stateModalHint"></p>
@@ -125,7 +134,7 @@ export function renderMainTaskView(root, { state, saveLocal, setUiStep, render, 
     </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap; margin-top:10px;">
-        <button id="startMain" ${state.main_running || state.main_completed >= MAIN_RUNS ? "disabled" : ""}>Start Text</button>
+        <button id="startMain" ${state.main_running || state.main_completed >= MAIN_RUNS ? "disabled" : ""}>${startButtonLabel}</button>
       </div>
       <div id="clickMarkDot" class="clickMarkDot" aria-hidden="true"></div>
       <p id="mainError" class="muted" style="color:#9b1c1c;"></p>
@@ -151,18 +160,20 @@ export function renderMainTaskView(root, { state, saveLocal, setUiStep, render, 
   const applyModalityControls = () => {
     const running = Boolean(state.main_running);
     const recentClick = Date.now() - (state.last_click_mark_ms || 0) < 320;
-    clickMarkDot.style.display = modality === "click_mark" && running ? "block" : "none";
-    clickMarkDot.classList.toggle("active", modality === "click_mark" && running && recentClick);
+    const showCornerDot = (modality === "click_mark" || modality === "hold") && running;
+    const dotActive = (modality === "click_mark" && recentClick) || (modality === "hold" && Boolean(state.holding));
+    clickMarkDot.style.display = showCornerDot ? "block" : "none";
+    clickMarkDot.classList.toggle("active", showCornerDot && dotActive);
 
     if (modality === "toggle_state") {
       const uncertain = Boolean(state.toggle_holding);
       toggleStatePanel.style.display = "block";
       if (uncertain) {
         toggleStateGraphic.src = "/graphics/squiggle.png";
-        toggleStateText.textContent = "emotional sense is unstable";
+        toggleStateText.textContent = statusLabels.changing;
       } else {
         toggleStateGraphic.src = "/graphics/straight.png";
-        toggleStateText.textContent = "emotional sense is stable";
+        toggleStateText.textContent = statusLabels.stable;
       }
     } else {
       toggleStatePanel.style.display = "none";
@@ -178,6 +189,19 @@ export function renderMainTaskView(root, { state, saveLocal, setUiStep, render, 
   };
 
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const POPUP_RESUME_PAUSE_MS = 1400;
+  const POPUP_MARK_VISIBLE_MS = 1600;
+
+  const applyPopupWordMarker = () => {
+    const activeMarks = root.querySelectorAll(".iterWord--pressMark");
+    activeMarks.forEach((el) => el.classList.remove("iterWord--pressMark"));
+    if (modality !== "popup_state" || !state.main_running) return;
+    const markIndex = Number(state.popup_mark_word_index);
+    const markAgeMs = Date.now() - Number(state.popup_marked_at_ms || 0);
+    if (!Number.isInteger(markIndex) || markIndex < 0 || markAgeMs > POPUP_MARK_VISIBLE_MS) return;
+    const marker = textEl.querySelector(`.iterWord[data-word-index="${markIndex}"]`);
+    if (marker) marker.classList.add("iterWord--pressMark");
+  };
 
   const submitPopupState = async (label) => {
     try {
@@ -186,7 +210,7 @@ export function renderMainTaskView(root, { state, saveLocal, setUiStep, render, 
       }
       popupStateHint.textContent = "saved. continuing...";
       await runtime.setPopupState(label);
-      await pause(320);
+      await pause(POPUP_RESUME_PAUSE_MS);
       runtime.clearPopupPrompt();
       popupStateForm.reset();
       for (const el of popupStateForm.querySelectorAll('input[name="popupState"]')) {
@@ -195,6 +219,7 @@ export function renderMainTaskView(root, { state, saveLocal, setUiStep, render, 
       popupStateHint.textContent = "";
       setError("");
       applyModalityControls();
+      applyPopupWordMarker();
     } catch (error) {
       for (const el of popupStateForm.querySelectorAll('input[name="popupState"]')) {
         el.disabled = false;
@@ -212,6 +237,7 @@ export function renderMainTaskView(root, { state, saveLocal, setUiStep, render, 
   };
 
   applyModalityControls();
+  applyPopupWordMarker();
 
   startBtn.onclick = async () => {
     state.main_running = true;
@@ -222,6 +248,7 @@ export function renderMainTaskView(root, { state, saveLocal, setUiStep, render, 
 
     const syncTimer = setInterval(() => {
       applyModalityControls();
+      applyPopupWordMarker();
     }, 120);
 
     try {

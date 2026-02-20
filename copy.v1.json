@@ -1,0 +1,233 @@
+{
+  "meta": {
+    "version": "1.3",
+    "last_updated": "2026-02-20",
+    "notes": "Verbatim modality-specific instruction set with strict emotional-state terminology."
+  },
+  "common": {
+    "continue_button": "Next",
+    "back_button": "Previous",
+    "start_button": "Start Text",
+    "finish_button": "Finish Text",
+    "instructions_label": "Instructions:",
+    "select_one_label": "Select one:",
+    "intro_prompt": "Read each step below carefully before starting calibration.",
+    "step_label": "Step",
+    "calibration_prompt": "Try out the different reading speeds and select the one you find most comfortable.",
+    "response_style_label": "Response style for this session:",
+    "quick_check_label": "Quick check:",
+    "confidence_label": "How confident are you about this shift?",
+    "confidence_scale": {
+      "min": 1,
+      "max": 5,
+      "labels": {
+        "1": "Not confident",
+        "5": "Very confident"
+      }
+    },
+    "global_definition": [
+      "In this study, emotional state means how someone feels in a given moment (for example: calm, anxious, relieved, tense, hopeful, discouraged).",
+      "Emotional state can change as new information appears.",
+      "You are tracking changes in emotional state, not changes in events."
+    ]
+  },
+  "character_condition": {
+    "title": "Tracking a Character's Emotional State",
+    "status_labels": {
+      "stable": "Character emotional state: stable",
+      "changing": "Character emotional state: changing"
+    },
+    "popup_options": {
+      "changing": "Emotional state starting to change",
+      "settled": "Emotional state settling",
+      "mistake": "Press was a mistake"
+    },
+    "modalities": {
+      "hold": {
+        "task_instruction": "When your sense of the character's emotional state begins to change, press and hold the space bar. Release the space bar when it settles into a new emotional state.",
+        "instructions": [
+          "You will read a short story that appears gradually on the screen.",
+          "Your task is to track your sense of the main character's emotional state as the story unfolds.",
+          "Begin by forming an initial sense of the character's emotional state.",
+          "When your sense of the character's emotional state begins to change, press and hold the space bar.",
+          "Keep holding the space bar while your sense of the emotional state feels unsettled.",
+          "Release the space bar when it settles into a new emotional state.",
+          "You may press and release multiple times.",
+          "You do not need to know or label your exact emotional sense. Tap into your feelings, trust your gut and intuition, and remember there are no right answers.",
+          "Do not press for curiosity, surprise, confusion, or events that do not change your emotional sense. This is only about emotional sense (what you feel), not what the story says."
+        ]
+      },
+      "click_mark": {
+        "task_instruction": "Press the space bar whenever your sense of the character's emotional state begins to change.",
+        "instructions": [
+          "You will read a short story that appears gradually on the screen.",
+          "Your task is to track your sense of the main character's emotional state.",
+          "Begin by forming an initial sense of the character's emotional state.",
+          "Press the space bar whenever your sense of the character's emotional state begins to change.",
+          "You may press multiple times if multiple changes occur.",
+          "Press only when your sense of the character's emotional state changes.",
+          "You do not need to know or label your exact emotional sense. Tap into your feelings, trust your gut and intuition, and remember there are no right answers.",
+          "Do not press for curiosity, surprise, confusion, or events that do not change your emotional sense. This is only about emotional sense (what you feel), not what the story says."
+        ]
+      },
+      "toggle_state": {
+        "task_instruction": "Press the space bar when your sense of the character's emotional state begins to change. Press the space bar again when the emotional state settles into a new state.",
+        "instructions": [
+          "You will read a short story that appears gradually on the screen.",
+          "Your task is to track your sense of the main character's emotional state.",
+          "Begin by forming an initial sense of the character's emotional state.",
+          "Press the space bar when your sense of the character's emotional state begins to change.",
+          "Press the space bar again when the emotional state settles into a new state.",
+          "Each pair of presses marks one emotional state transition.",
+          "Press only for changes in the character's emotional state.",
+          "You may mark multiple transitions.",
+          "You do not need to know or label your exact emotional sense. Tap into your feelings, trust your gut and intuition, and remember there are no right answers.",
+          "Do not press for curiosity, surprise, confusion, or events that do not change your emotional sense. This is only about emotional sense (what you feel), not what the story says."
+        ]
+      },
+      "popup_state": {
+        "task_instruction": "When your sense of the character's emotional state begins to change, press the space bar. A short menu will appear.",
+        "instructions": [
+          "You will read a short story that appears gradually on the screen.",
+          "Your task is to track your sense of the main character's emotional state.",
+          "Begin by forming an initial sense of the character's emotional state.",
+          "When your sense of the character's emotional state begins to change, press the space bar.",
+          "A short menu will appear.",
+          "Select one option:",
+          "\"Emotional state starting to change\"",
+          "\"Emotional state settling\"",
+          "\"Press was a mistake\"",
+          "You may mark multiple transitions.",
+          "Press only when your sense of the character's emotional state changes.",
+          "You do not need to know or label your exact emotional sense. Tap into your feelings, trust your gut and intuition, and remember there are no right answers.",
+          "Do not press for curiosity, surprise, confusion, or events that do not change your emotional sense. This is only about emotional sense (what you feel), not what the story says."
+        ]
+      }
+    },
+    "post_shift_questions": {
+      "validation": {
+        "question": "At this moment, did your understanding of the character's emotional state change?",
+        "options": [
+          "Yes",
+          "No (false alarm)",
+          "Not sure"
+        ]
+      },
+      "direction": {
+        "question": "In which direction did the character's emotional state shift?",
+        "options": [
+          "More positive",
+          "More negative",
+          "Mixed",
+          "Unsure"
+        ]
+      }
+    }
+  },
+  "self_condition": {
+    "title": "Tracking Your Own Emotional State",
+    "status_labels": {
+      "stable": "Your emotional state: stable",
+      "changing": "Your emotional state: changing"
+    },
+    "popup_options": {
+      "changing": "My emotional state starting to change",
+      "settled": "My emotional state settling",
+      "mistake": "Press was a mistake"
+    },
+    "modalities": {
+      "hold": {
+        "task_instruction": "When your own emotional state begins to change, press and hold the space bar. Release the space bar when it settles into a new emotional state.",
+        "instructions": [
+          "You will read a short story that appears gradually on the screen.",
+          "Your task is to track your own emotional state while reading.",
+          "Notice your initial emotional state as you begin reading.",
+          "When your own emotional state begins to change, press and hold the space bar.",
+          "Keep holding while your emotional state feels unsettled.",
+          "Release the space bar when it settles into a new emotional state.",
+          "Press only when your own emotional state changes.",
+          "You may press and release multiple times.",
+          "You do not need to know or label your exact emotional sense. Tap into your feelings, trust your gut and intuition, and remember there are no right answers.",
+          "Do not press for curiosity, surprise, confusion, or events that do not change your emotional sense. This is only about emotional sense (what you feel), not what the story says."
+        ]
+      },
+      "click_mark": {
+        "task_instruction": "Press the space bar whenever your own emotional state begins to change.",
+        "instructions": [
+          "You will read a short story that appears gradually on the screen.",
+          "Your task is to track your own emotional state while reading.",
+          "Notice your initial emotional state.",
+          "Press the space bar whenever your own emotional state begins to change.",
+          "You may press multiple times.",
+          "You do not need to know or label your exact emotional sense. Tap into your feelings, trust your gut and intuition, and remember there are no right answers.",
+          "Do not press for curiosity, surprise, confusion, or events that do not change your emotional sense. This is only about emotional sense (what you feel), not what the story says."
+        ]
+      },
+      "toggle_state": {
+        "task_instruction": "Press the space bar when your emotional state begins to change. Press the space bar again when it settles into a new emotional state.",
+        "instructions": [
+          "You will read a short story that appears gradually on the screen.",
+          "Your task is to track your own emotional state while reading.",
+          "Notice your initial emotional state.",
+          "Press the space bar when your emotional state begins to change.",
+          "Press the space bar again when it settles into a new emotional state.",
+          "Each pair of presses marks one emotional state transition.",
+          "Press only for changes in your emotional state.",
+          "You may mark multiple transitions.",
+          "You do not need to know or label your exact emotional sense. Tap into your feelings, trust your gut and intuition, and remember there are no right answers.",
+          "Do not press for curiosity, surprise, confusion, or events that do not change your emotional sense. This is only about emotional sense (what you feel), not what the story says."
+        ]
+      },
+      "popup_state": {
+        "task_instruction": "When your emotional state begins to change, press the space bar. A short menu will appear.",
+        "instructions": [
+          "You will read a short story that appears gradually on the screen.",
+          "Your task is to track your own emotional state while reading.",
+          "Notice your initial emotional state.",
+          "When your emotional state begins to change, press the space bar.",
+          "A short menu will appear.",
+          "Select one option:",
+          "\"My emotional state starting to change\"",
+          "\"My emotional state settling\"",
+          "\"Press was a mistake\"",
+          "Press only when your emotional state changes.",
+          "You may mark multiple transitions.",
+          "You do not need to know or label your exact emotional sense. Tap into your feelings, trust your gut and intuition, and remember there are no right answers.",
+          "Do not press for curiosity, surprise, confusion, or events that do not change your emotional sense. This is only about emotional sense (what you feel), not what the story says."
+        ]
+      }
+    },
+    "post_shift_questions": {
+      "validation": {
+        "question": "At this moment, did your own emotional state change?",
+        "options": [
+          "Yes",
+          "No (false alarm)",
+          "Not sure"
+        ]
+      },
+      "direction": {
+        "question": "In which direction did your emotional state shift?",
+        "options": [
+          "More positive",
+          "More negative",
+          "Mixed",
+          "Unsure"
+        ]
+      }
+    }
+  },
+  "end_of_text_questions": {
+    "mental_demand": {
+      "question": "How mentally demanding was this task?",
+      "scale": {
+        "min": 1,
+        "max": 5,
+        "labels": {
+          "1": "Not demanding",
+          "5": "Very demanding"
+        }
+      }
+    }
+  }
+}

@@ -84,6 +84,8 @@ function renderSessions(rows) {
       <td class="mono">${row.session_id}</td>
       <td class="mono">${row.prolific_pid || row.participant_id}</td>
       <td>${row.status}</td>
+      <td>${row.experiment_target || "-"}</td>
+      <td>${row.input_modality || "-"} ${row.condition_id ? `(${row.condition_id})` : ""}</td>
       <td>${row.calibration_group || "-"} ${row.ms_per_word ? `(${row.ms_per_word}ms)` : ""}</td>
       <td>${row.assigned_count}</td>
       <td>${row.done_count}</td>
@@ -111,6 +113,8 @@ function renderDetail(detail) {
     <h2>Session Detail</h2>
     <p><strong>Session:</strong> <span class="mono">${detail.session.session_id}</span></p>
     <p><strong>Participant:</strong> <span class="mono">${detail.participant?.prolific_pid || detail.session.participant_id}</span></p>
+    <p><strong>Target:</strong> ${detail.session.experiment_target || "-"}</p>
+    <p><strong>Modality:</strong> ${detail.session.input_modality || "-"} ${detail.session.condition_id ? `(${detail.session.condition_id})` : ""}</p>
     <h3>Assignments</h3>
     <pre>${JSON.stringify(detail.assignments, null, 2)}</pre>
     <h3>Events ${detail.events_truncated ? "(truncated)" : ""}</h3>

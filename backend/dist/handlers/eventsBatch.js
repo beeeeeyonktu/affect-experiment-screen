@@ -20,10 +20,11 @@ function validateBatch(payload) {
         throw new Error("events must be non-empty array");
     }
 }
-function toStoredEvent(ev) {
+function toStoredEvent(ev, experiment_target) {
     return {
         event_key: `${ev.stimulus_id}#${ev.run_id}#${String(ev.client_event_seq).padStart(10, "0")}`,
         ...ev,
+        experiment_target,
         t_server_received_utc_ms: nowMs()
     };
 }
@@ -72,7 +73,7 @@ export async function handler(event) {
             if (ev.type === "REVEAL_END")
                 sawRevealEnd = true;
             try {
-                await putEvent(toStoredEvent(ev));
+                await putEvent(toStoredEvent(ev, session.experiment_target));
             }
             catch (error) {
                 // Idempotency: if duplicate key already exists, treat as acked.
@@ -100,6 +101,7 @@ export async function handler(event) {
                             session_id: payload.session_id,
                             hold_id,
                             participant_id: session.participant_id,
+                            experiment_target: session.experiment_target,
                             stimulus_id: ev.stimulus_id,
                             run_id: ev.run_id,
                             episode_type: ev.type === "KEYUP" ? "hold_interval" : "toggle_interval",
@@ -133,6 +135,7 @@ export async function handler(event) {
                             session_id: payload.session_id,
                             hold_id,
                             participant_id: session.participant_id,
+                            experiment_target: session.experiment_target,
                             stimulus_id: ev.stimulus_id,
                             run_id: ev.run_id,
                             episode_type: "click_point",
@@ -166,6 +169,7 @@ export async function handler(event) {
                             session_id: payload.session_id,
                             hold_id,
                             participant_id: session.participant_id,
+                            experiment_target: session.experiment_target,
                             stimulus_id: ev.stimulus_id,
                             run_id: ev.run_id,
                             episode_type: "popup_state_point",

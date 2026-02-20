@@ -4,23 +4,32 @@ function getModality(state) {
   return state.input_modality || "hold";
 }
 
-function getPracticeInstruction(modality) {
-  if (modality === "click_mark") {
-    return "This is a practice run. Press Space at the moment your emotional understanding of the situation starts to shift.";
-  }
-  if (modality === "toggle_state") {
-    return "This is a practice run. Press Space when your sense of the situation becomes unstable, then press again when it settles.";
-  }
-  if (modality === "popup_state") {
-    return "This is a practice run. Press Space when your emotional understanding shifts, then choose the state in the popup.";
-  }
-  return "This is a practice run. Hold Space while your sense of the situation feels unstable, and release when it settles.";
+function getPracticeInstruction(state, modality) {
+  const fromCopy = state.copy_resolved?.task_instruction;
+  if (typeof fromCopy === "string" && fromCopy.length > 0) return `Practice run: ${fromCopy}`;
+  if (modality === "hold") return "Practice run: Press and hold Space when emotional state begins to change. Release when it settles.";
+  if (modality === "click_mark") return "Practice run: Press Space once when emotional state begins to change.";
+  if (modality === "toggle_state") return "Practice run: Press Space when emotional state starts changing, then press again when it settles.";
+  if (modality === "popup_state") return "Practice run: Press Space when emotional state starts changing, then choose the current state in the popup.";
+  return "Practice run: Follow the instructions for this session.";
 }
 
 export function renderPracticeView(root, { state, saveLocal, setUiStep, render, runtime }) {
   const idx = state.practice_index;
   const currentNumber = idx + 1;
   const modality = getModality(state);
+  const instructionsLabel = state.copy_resolved?.instructions_label || "Instructions:";
+  const selectOneLabel = state.copy_resolved?.select_one_label || "Select one:";
+  const popupLabels = state.copy_resolved?.popup_labels || {
+    mistake: "Press was a mistake",
+    uncertain: "Emotional state starting to change",
+    clear: "Emotional state settling"
+  };
+  const statusLabels = state.copy_resolved?.status_labels || {
+    stable: "Emotional state: stable",
+    changing: "Emotional state: changing"
+  };
+  const startButtonLabel = state.copy_resolved?.start_button || "Start Text";
 
   root.innerHTML = `
     <style>
@@ -90,7 +99,7 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
       }
     </style>
     <div class="practiceSurface">
-      <p><strong>Instructions:</strong> ${getPracticeInstruction(modality)}</p>
+      <p><strong>${instructionsLabel}</strong> ${getPracticeInstruction(state, modality)}</p>
       <p class="muted">Practice ${currentNumber} of ${PRACTICE_RUNS}</p>
       <div id="practiceText" style="line-height:1.9;min-height:180px;"></div>
 
@@ -105,18 +114,18 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
       <div class="practiceModal" role="dialog" aria-modal="true" aria-label="Select current emotional state">
         <form id="practicePopupStateForm">
           <fieldset>
-            <legend>Select one:</legend>
+            <legend>${selectOneLabel}</legend>
             <label>
               <input type="radio" name="practicePopupState" value="mistake" />
-              false alarm (no shift)
+              ${popupLabels.mistake}
             </label>
             <label>
               <input type="radio" name="practicePopupState" value="uncertain" />
-              shift noticed, still unstable
+              ${popupLabels.uncertain}
             </label>
             <label>
               <input type="radio" name="practicePopupState" value="clear" />
-              shift noticed, now stable
+              ${popupLabels.clear}
             </label>
           </fieldset>
           <p id="practicePopupStateHint" class="practiceModalHint"></p>
@@ -129,7 +138,7 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
 
       <p class="muted" id="practiceFeedback">${state.practice_feedback || ""}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button id="startPractice">Start Practice Text</button>
+        <button id="startPractice">${startButtonLabel}</button>
         <button id="changeSpeed">Change Text Speed</button>
         <button id="backIntro">Back to Instructions</button>
       </div>
@@ -152,17 +161,20 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
     const running = Boolean(state.practice_active);
     const recentClick = Date.now() - (state.practice_last_click_mark_ms || 0) < 320;
     togglePanel.style.display = modality === "toggle_state" ? "block" : "none";
-    clickDot.style.display = modality === "click_mark" && running ? "block" : "none";
-    clickDot.classList.toggle("active", modality === "click_mark" && running && recentClick);
+    const showCornerDot = (modality === "click_mark" || modality === "hold") && running;
+    const dotActive =
+      (modality === "click_mark" && recentClick) || (modality === "hold" && Boolean(state.practice_holding));
+    clickDot.style.display = showCornerDot ? "block" : "none";
+    clickDot.classList.toggle("active", showCornerDot && dotActive);
 
     if (modality === "toggle_state") {
       const unstable = Boolean(state.practice_holding);
       if (unstable) {
         toggleFace.src = "/graphics/squiggle.png";
-        toggleText.textContent = "emotional sense is unstable";
+        toggleText.textContent = statusLabels.changing;
       } else {
         toggleFace.src = "/graphics/straight.png";
-        toggleText.textContent = "emotional sense is stable";
+        toggleText.textContent = statusLabels.stable;
       }
     }
 
@@ -176,6 +188,19 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
   };
 
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const POPUP_RESUME_PAUSE_MS = 1400;
+  const POPUP_MARK_VISIBLE_MS = 1600;
+
+  const applyPracticePopupWordMarker = () => {
+    const activeMarks = root.querySelectorAll(".iterWord--pressMark");
+    activeMarks.forEach((el) => el.classList.remove("iterWord--pressMark"));
+    if (modality !== "popup_state" || !state.practice_active) return;
+    const markIndex = Number(state.practice_popup_mark_word_index);
+    const markAgeMs = Date.now() - Number(state.practice_popup_marked_at_ms || 0);
+    if (!Number.isInteger(markIndex) || markIndex < 0 || markAgeMs > POPUP_MARK_VISIBLE_MS) return;
+    const marker = textEl.querySelector(`.iterWord[data-word-index="${markIndex}"]`);
+    if (marker) marker.classList.add("iterWord--pressMark");
+  };
 
   const submitPracticePopupState = async (label) => {
     for (const el of popupStateForm.querySelectorAll('input[name="practicePopupState"]')) {
@@ -183,13 +208,14 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
     }
     popupStateHint.textContent = "saved. continuing...";
     runtime.setPracticePopupState(label);
-    await pause(320);
+    await pause(POPUP_RESUME_PAUSE_MS);
     popupStateForm.reset();
     for (const el of popupStateForm.querySelectorAll('input[name="practicePopupState"]')) {
       el.disabled = false;
     }
     popupStateHint.textContent = "";
     applyPracticeControls();
+    applyPracticePopupWordMarker();
   };
 
   popupStateForm.onchange = (e) => {
@@ -200,6 +226,7 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
   };
 
   applyPracticeControls();
+  applyPracticePopupWordMarker();
 
   startBtn.onclick = async () => {
     startBtn.disabled = true;
@@ -210,7 +237,10 @@ export function renderPracticeView(root, { state, saveLocal, setUiStep, render, 
 
     try {
       applyPracticeControls();
-      syncTimer = setInterval(() => applyPracticeControls(), 120);
+      syncTimer = setInterval(() => {
+        applyPracticeControls();
+        applyPracticePopupWordMarker();
+      }, 120);
       const passed = await runtime.runPractice(textEl);
       clearInterval(syncTimer);
       applyPracticeControls();

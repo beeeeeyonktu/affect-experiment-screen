@@ -8,6 +8,11 @@ function createInitialState() {
     session_id: null,
     lease_token: null,
     calibration_group: null,
+    experiment_target: null,
+    condition_id: null,
+    copy_version: null,
+    copy_resolved: null,
+    copy_full: null,
     input_modality: "hold",
     ms_per_word: null,
 
@@ -23,6 +28,8 @@ function createInitialState() {
     practice_holding: null,
     practice_paused: false,
     practice_popup_pending: false,
+    practice_popup_mark_word_index: -1,
+    practice_popup_marked_at_ms: 0,
     practice_holds: [],
     practice_feedback: "",
 
@@ -39,6 +46,8 @@ function createInitialState() {
     holding: null,
     toggle_holding: null,
     popup_pending: false,
+    popup_mark_word_index: -1,
+    popup_marked_at_ms: 0,
     main_paused: false,
     last_click_mark_ms: 0,
     practice_last_click_mark_ms: 0,
@@ -91,6 +100,10 @@ export function loadLocal() {
   state.practice_holding = null;
   state.practice_paused = false;
   state.practice_popup_pending = false;
+  state.practice_popup_mark_word_index = -1;
+  state.practice_popup_marked_at_ms = 0;
+  state.popup_mark_word_index = -1;
+  state.popup_marked_at_ms = 0;
   state.last_click_mark_ms = 0;
   state.practice_last_click_mark_ms = 0;
 }

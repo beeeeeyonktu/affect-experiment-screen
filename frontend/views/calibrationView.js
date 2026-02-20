@@ -1,6 +1,24 @@
 import { CALIBRATION_SAMPLE, SPEED_GROUPS } from "../config.js";
 
 export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }) {
+  const selectedModality = state.input_modality || "hold";
+  const instructionsLabel = state.copy_resolved?.instructions_label || "Instructions:";
+  const calibrationPrompt =
+    state.copy_resolved?.calibration_prompt ||
+    "Try out the different reading speeds and select the one you find most comfortable.";
+  const responseStyleLabel = state.copy_resolved?.response_style_label || "Response style for this session:";
+  const selectOneLabel = state.copy_resolved?.select_one_label || "Select one:";
+  const popupLabels = state.copy_resolved?.popup_labels || {
+    mistake: "Press was a mistake",
+    uncertain: "Emotional state starting to change",
+    clear: "Emotional state settling"
+  };
+  const statusLabels = state.copy_resolved?.status_labels || {
+    stable: "Emotional state: stable",
+    changing: "Emotional state: changing"
+  };
+  const continueLabel = state.copy_resolved?.continue_button || "Continue";
+
   root.innerHTML = `
     <style>
       .calibrationSurface {
@@ -51,20 +69,14 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
       }
     </style>
     <div class="calibrationSurface">
-    <p><strong>Instructions:</strong> Try out the different reading speeds and select the one you find most comfortable.</p>
+    <p><strong>${instructionsLabel}</strong> ${calibrationPrompt}</p>
     <div>
       <span class="pill" data-speed="slow">Slow</span>
       <span class="pill" data-speed="medium">Medium</span>
       <span class="pill" data-speed="fast">Fast</span>
     </div>
     <div id="calibrationText" style="line-height:1.8;min-height:120px;margin:12px 0"></div>
-    <p><strong>Input modality for this session</strong></p>
-    <div id="modalityGroup" style="display:grid;gap:6px;margin:8px 0 14px 0;">
-      <label><input type="radio" name="inputModality" value="hold" /> hold (press and hold space)</label>
-      <label><input type="radio" name="inputModality" value="click_mark" /> click mark (press when your emotional understanding starts to shift)</label>
-      <label><input type="radio" name="inputModality" value="toggle_state" /> toggle state (switch between clear and uncertain)</label>
-      <label><input type="radio" name="inputModality" value="popup_state" /> popup state (pause and choose mistake/uncertain/clear)</label>
-    </div>
+    <p class="muted" style="margin:8px 0 14px 0;">${responseStyleLabel} <strong>${selectedModality}</strong></p>
     <div id="clickCalibrationPreview" style="display:none;margin:8px 0 14px 0;padding:6px 0;text-align:center;">
       <div id="clickCalibrationDot" style="display:block;width:14px;height:14px;border-radius:999px;background:#1f2937;opacity:0.28;margin:0 auto;transform:scale(1);transition:transform 240ms ease,opacity 240ms ease;"></div>
     </div>
@@ -76,38 +88,36 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
       <p class="muted" style="margin:6px 0 0 0;">Press <kbd>Space</kbd> to switch state during this preview.</p>
     </div>
     <div id="popupCalibrationPreview" style="display:none;margin:8px 0 14px 0;padding:6px 0;">
-      <p class="muted" style="margin:0;">Press <kbd>Space</kbd> to open the popup chooser during this preview.</p>
+      <p class="muted" style="margin:0;"></p>
     </div>
     <div id="calibrationPopupPanel" class="calibrationModalBackdrop" aria-hidden="true">
       <div class="calibrationModal" role="dialog" aria-modal="true" aria-label="Select current emotional state">
         <form id="calibrationPopupStateForm">
           <fieldset>
-            <legend>Select one:</legend>
+            <legend>${selectOneLabel}</legend>
             <label>
               <input type="radio" name="calibrationPopupState" value="mistake" />
-              false alarm (no shift)
+              ${popupLabels.mistake}
             </label>
             <label>
               <input type="radio" name="calibrationPopupState" value="uncertain" />
-              shift noticed, still unstable
+              ${popupLabels.uncertain}
             </label>
             <label>
               <input type="radio" name="calibrationPopupState" value="clear" />
-              shift noticed, now stable
+              ${popupLabels.clear}
             </label>
           </fieldset>
           <p id="calibrationPopupHint" class="calibrationModalHint"></p>
         </form>
       </div>
     </div>
-    <button id="confirmCalibration">Continue</button>
+    <button id="confirmCalibration">${continueLabel}</button>
     </div>
   `;
 
   let selected = state.calibration_group || "medium";
-  let selectedModality = state.input_modality || "hold";
   const pills = [...root.querySelectorAll(".pill")];
-  const modalityOptions = [...root.querySelectorAll('input[name="inputModality"]')];
   const clickPreview = root.querySelector("#clickCalibrationPreview");
   const clickDot = root.querySelector("#clickCalibrationDot");
   const togglePreview = root.querySelector("#toggleCalibrationPreview");
@@ -120,6 +130,7 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
   const calibrationText = root.querySelector("#calibrationText");
   let previewTimer = null;
   let clickPreviewLastMarkMs = 0;
+  let holdPreviewActive = false;
   let togglePreviewUnstable = false;
   let popupPreviewPending = false;
   const words = CALIBRATION_SAMPLE.split(/\s+/);
@@ -171,7 +182,7 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
 
   const paintTogglePreview = () => {
     const isToggle = selectedModality === "toggle_state";
-    const isClick = selectedModality === "click_mark";
+    const isClick = selectedModality === "click_mark" || selectedModality === "hold";
     const isPopup = selectedModality === "popup_state";
     clickPreview.style.display = isClick ? "block" : "none";
     togglePreview.style.display = isToggle ? "block" : "none";
@@ -188,19 +199,20 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
     }
     if (togglePreviewUnstable) {
       toggleFace.src = "/graphics/squiggle.png";
-      toggleText.textContent = "emotional sense is unstable";
+      toggleText.textContent = statusLabels.changing;
     } else {
       toggleFace.src = "/graphics/straight.png";
-      toggleText.textContent = "emotional sense is stable";
+      toggleText.textContent = statusLabels.stable;
     }
   };
 
   const paintClickPreview = () => {
-    if (selectedModality !== "click_mark") {
+    if (selectedModality !== "click_mark" && selectedModality !== "hold") {
       clickDot.classList.remove("active");
       return;
     }
-    const active = Date.now() - clickPreviewLastMarkMs < 320;
+    const active =
+      selectedModality === "hold" ? holdPreviewActive : Date.now() - clickPreviewLastMarkMs < 320;
     clickDot.style.opacity = active ? "0.9" : "0.28";
     clickDot.style.transform = active ? "scale(1.5)" : "scale(1)";
   };
@@ -214,6 +226,9 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
     } else if (selectedModality === "click_mark") {
       clickPreviewLastMarkMs = Date.now();
       paintClickPreview();
+    } else if (selectedModality === "hold") {
+      holdPreviewActive = true;
+      paintClickPreview();
     } else if (selectedModality === "popup_state") {
       popupPreviewPending = true;
       stopPreview();
@@ -221,8 +236,17 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
     paintTogglePreview();
   };
   window.addEventListener("keydown", onCalibrationKeyDown);
+  const onCalibrationKeyUp = (e) => {
+    if (e.code !== "Space") return;
+    if (selectedModality !== "hold") return;
+    e.preventDefault();
+    holdPreviewActive = false;
+    paintClickPreview();
+  };
+  window.addEventListener("keyup", onCalibrationKeyUp);
 
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const POPUP_RESUME_PAUSE_MS = 1400;
 
   popupStateForm.onchange = async (e) => {
     const target = e.target;
@@ -232,7 +256,7 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
       el.disabled = true;
     }
     popupHint.textContent = "";
-    await pause(320);
+    await pause(POPUP_RESUME_PAUSE_MS);
     popupPreviewPending = false;
     popupStateForm.reset();
     for (const el of popupStateForm.querySelectorAll('input[name="calibrationPopupState"]')) {
@@ -250,23 +274,6 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
       playPreview();
     };
   });
-  modalityOptions.forEach((opt) => {
-    opt.checked = opt.value === selectedModality;
-    opt.onchange = () => {
-      selectedModality = opt.value;
-      if (selectedModality !== "toggle_state") {
-        togglePreviewUnstable = false;
-      }
-      if (selectedModality !== "click_mark") {
-        clickPreviewLastMarkMs = 0;
-      }
-      if (selectedModality !== "popup_state") {
-        popupPreviewPending = false;
-      }
-      paintClickPreview();
-      paintTogglePreview();
-    };
-  });
 
   paint();
   playPreview();
@@ -279,6 +286,7 @@ export function renderCalibrationView(root, { state, saveLocal, setUiStep, api }
     state.input_modality = out.input_modality || selectedModality;
     state.ms_per_word = out.ms_per_word;
     window.removeEventListener("keydown", onCalibrationKeyDown);
+    window.removeEventListener("keyup", onCalibrationKeyUp);
     stopPreview();
     saveLocal();
     setUiStep(state.return_step_after_calibration || "practice");
